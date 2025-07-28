@@ -1,0 +1,43 @@
+CLS
+# Step 1: Encode credentials
+$username = "xxxx"
+$password = "xxxx"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"
+    
+}
+$folderpath="C:\Users\AL91261\UpdateTagAdding"
+$ExcelData=Import-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\CMD_PARAMS1.xlsx"
+foreach($item in $ExcelData)
+{
+$Jobname=$item.'Job Name'
+$File=Get-ChildItem -Path $folderpath  -Filter "$Jobname.xml"
+if($File.BaseName -eq $Jobname)
+{
+$searchstring=$item.Parameters_Old
+$replacestring=$item.Parameter_New
+Write-Output $searchstring
+Write-Output $replacestring
+(Get-Content -Path $File.PSPath) -replace $searchstring , $replacestring |Out-File .\TidalAutomation\APIRequest\ParamRequest\$File
+}
+else
+{
+Write-Output "Excel record $Jobname doesnt have matching File in Folder"
+}
+}
+$ReplacedFolderPath="C:\Users\AL91261\TidalAutomation\APIRequest\ParamRequest"
+Get-ChildItem -Path $folderpath | ForEach-Object {
+$filename=$_.Name
+$filepath= $_.FullName
+$xmlContent= Get-Content -Path $filepath -Raw
+# Step 2: Make the REST API request
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+Write-Output "Processing Update Request for $filename"
+$parentresponse = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -Body $xmlContent
+$parentresponse.Content | Out-File -FilePath .\APIUpdateResponse\$filename  -Encoding utf8
+Write-Output "Update Request completed for $filename and response available in APIUpdateResponse Folder"
+}
+
