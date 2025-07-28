@@ -1,0 +1,812 @@
+CLS
+function Cleanup{
+Write-Host "Started Clean-up Old Logs from the Folder"
+Remove-Item C:\Users\AL91261\TidalAutomation\FileDependencySource\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\JobDependencySource\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\JobDefinitionSource\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\UpdateJobDefinition\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\UpdateJobDependency\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\UpdateFileDependency\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\MappingExcel\*.xlsx*
+Write-Host "Completed Clean-up Old Logs from the Folder"
+}
+
+function Get-Headers{
+$username = "xxxx"
+$password = "xxxx"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"}
+return $headers
+}
+
+function JobDefinition($GroupID,$GroupTitle){
+$Jobarray=@()
+Write-Host "Started Extraction of Job_Definition for Job ID:$GroupID and Title:$GroupTitle"
+Invoke-JobGet $GroupID $GroupTitle
+#UpdateJobDefinitionXML $GroupTitle
+$Jobarray +=PrepareExcel $GroupTitle
+Write-Host "Completed Extraction of Job_Definition for Job ID:$GroupID and Title:$GroupTitle"
+return $Jobarray
+}
+
+function FileDependencyDefinition($JobDepID,$JobDepTitle){
+Write-Host "Started Extraction of FileDependency for Job ID:$JobDepID and Title:$JobDepTitle"
+$Response=Invoke-JobGetFileDependencyIDS $JobDepID $JobDepTitle
+$Deparray=@()
+if($Response.id)
+{
+write-host "entered into if block of filedependency"
+foreach ($Dependencyitem in $Response)
+{
+$Dependencyitemid=$Dependencyitem.id
+$Dependencyitemtitle=$Dependencyitem.title
+#Write-Host $Dependencyitemid
+#Write-Host $Dependencyitemtitle
+$Dependencyfilename=Invoke-JobFileDependency $Dependencyitemid $JobDepTitle
+#UpdateFileDependecyXML $Dependencyfilename
+$Deparray +=PrepareFileDependencyExcel $Dependencyfilename $TRUE
+}
+Write-Host "Completed Extraction of FileDependency for Job ID:$GroupID and Title:$GroupTitle"
+return $Deparray
+}
+elseif($Response.entry.id)
+{
+write-host "entered into entry block of filedependency"
+foreach ($Dependencyitem in $Response.entry)
+{
+$Dependencyitemid=$Dependencyitem.id
+$Dependencyitemtitle=$Dependencyitem.title
+#Write-Host $Dependencyitemid
+#Write-Host $Dependencyitemtitle
+$Dependencyfilename=Invoke-JobFileDependency $Dependencyitemid $JobDepTitle
+#UpdateFileDependecyXML $Dependencyfilename
+$Deparray +=PrepareFileDependencyExcel $Dependencyfilename $TRUE
+}
+Write-Host "Completed Extraction of FileDependency for Job ID:$GroupID and Title:$GroupTitle"
+return $Deparray
+}
+else
+{
+$Deparray +=PrepareFileDependencyExcel $JobDepTitle $FALSE
+Write-Host "No File Dependency for Job_ID: $JobDepID and Job_Name:$JobDepTitle"
+return $Deparray
+}
+}
+
+function DependencyDefinition($JobDepID,$JobDepTitle){
+Write-Host "Started Extraction of Job_Dependency for Job ID:$JobDepID and Title:$JobDepTitle"
+$Response=Invoke-JobGetDependencyIDS $JobDepID $JobDepTitle
+$Deparray=@()
+if($Response.id)
+{
+write-host "entered into if block of Jobdependency"
+foreach ($Dependencyitem in $Response)
+{
+$Dependencyitemid=$Dependencyitem.id
+$Dependencyitemtitle=$Dependencyitem.title
+Write-Host $Dependencyitemid
+Write-Host $Dependencyitemtitle
+$Dependencyfilename=Invoke-JobDependency $Dependencyitemid $Dependencyitemtitle
+#UpdateJobDependecyXML $Dependencyfilename
+$Deparray +=PrepareDependencyExcel $Dependencyfilename $TRUE
+}
+Write-Host "Completed Extraction of Job_Dependency for Job ID:$GroupID and Title:$GroupTitle"
+return $Deparray
+}
+elseif($Response.entry.id)
+{
+write-host "entered into entry block of Jobdependency"
+foreach ($Dependencyitem in $Response.entry)
+{
+$Dependencyitemid=$Dependencyitem.id
+$Dependencyitemtitle=$Dependencyitem.title
+#Write-Host $Dependencyitemid
+#Write-Host $Dependencyitemtitle
+$Dependencyfilename=Invoke-JobDependency $Dependencyitemid $Dependencyitemtitle
+#UpdateJobDependecyXML $Dependencyfilename
+$Deparray +=PrepareDependencyExcel $Dependencyfilename $TRUE
+}
+Write-Host "Completed Extraction of Job_Dependency for Job ID:$GroupID and Title:$GroupTitle"
+return $Deparray
+}
+else
+{
+$Deparray +=PrepareDependencyExcel $JobDepTitle $FALSE
+Write-Host "No Dependency for Job_ID: $JobDepID and Job_Name:$JobDepTitle"
+return $Deparray
+}
+}
+
+function Invoke-JobGetIDs($JobGetIDS_Param){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+    <tes:Job.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+        <queryCondition>parentid=$JobGetIDS_Param</queryCondition>
+    </tes:Job.getIds>
+</entry>
+"@
+Write-Host "Invoke JobGetIDs API Request for ID: $JobGetIDS_Param Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke JobGetIDs API Request for ID: $JobGetIDS_Param Completed"
+return $Response
+}
+
+function Invoke-JobGet($JobGet_ID,$JobGet_Title){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+    <tes:Job.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+        <id>$JobGet_ID</id>
+    </tes:Job.get>
+</entry>
+"@
+Write-Host "Invoke JobGet API Request for Job_ID: $JobGet_ID and Job_Name:$JobGet_Title Started"
+$Response = Invoke-WebRequest -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke JobGet API Request for Job_ID: $JobGet_ID and Job_Name:$JobGet_Title Completed"
+$Response.Content | Out-File -FilePath C:\Users\AL91261\TidalAutomation\JobDefinitionSource\$JobGet_Title.xml  -Encoding utf8
+Write-Host "Out-File opertaion for Job_ID: $JobGet_ID and Job_Name:$JobGet_Title Completed and Response available in JobDefinitionSource Folder"
+}
+
+function Invoke-JobGetDependencyIDS($JobDepID,$JobDepTitle){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobDependency.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<queryCondition>jobid=$JobDepID</queryCondition>
+	</tes:JobDependency.getIds>
+</entry>
+"@
+Write-Host "Invoke JobDependency-GetIDS API Request for Job_ID: $JobDepID and Job_Name:$JobDepTitle Started"
+#write-host $Requestbody
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke JobDependency-GetIDS API Request for Job_ID: $JobDepID and Job_Name:$JobDepTitle Completed"
+write-host $Response.entry.id
+return $Response
+}
+
+function Invoke-JobDependency($Dependencyid,$Dependencytitle){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobDependency.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>$Dependencyid</id>
+	</tes:JobDependency.get>
+</entry>
+"@
+Write-Host "Invoke JobDependency API Request for Dependency_ID: $Dependencyid and Job_Name:$Dependencytitle Started"
+$Response = Invoke-WebRequest -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke JobDependency API Request for Dependency_ID: $Dependencyid and Job_Name:$Dependencytitle Completed"
+$Dependencyefilename=$Dependencyid+"_"+$Dependencytitle
+$Response.Content | Out-File -FilePath C:\Users\AL91261\TidalAutomation\JobDependencySource\$Dependencyefilename.xml -Encoding utf8
+Write-Host "Out-File opertaion for DependencyID:$Dependencyid and Job_Name:$Dependencytitle Completed and Response available in JobDependencySource Folder"
+return $Dependencyefilename
+}
+
+function Invoke-JobGetFileDependencyIDS($JobDepID,$JobDepTitle){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:FileDependency.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<queryCondition>jobid=$JobDepID</queryCondition>
+	</tes:FileDependency.getIds>
+</entry>
+"@
+Write-Host "Invoke Job FileDependency-GetIDS API Request for Job_ID: $JobDepID and Job_Name:$JobDepTitle Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke Job FileDependency-GetIDS API Request for Job_ID: $JobDepID and Job_Name:$JobDepTitle Completed"
+return $Response
+}
+
+function Invoke-JobFileDependency($Dependencyid,$Dependencytitle){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:FileDependency.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>$Dependencyid</id>
+	</tes:FileDependency.get>
+</entry>
+"@
+Write-Host "Invoke JobFileDependency API Request for Dependency_ID: $Dependencyid and Job_Name:$Dependencytitle Started"
+$Response = Invoke-WebRequest -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke JobFileDependency API Request for Dependency_ID: $Dependencyid and Job_Name:$Dependencytitle Completed"
+$Dependencyefilename=$Dependencyid+"_"+$Dependencytitle
+$Response.Content | Out-File -FilePath C:\Users\AL91261\TidalAutomation\FileDependencySource\$Dependencyefilename.xml -Encoding utf8
+Write-Host "Out-File opertaion for FileDependencyID:$Dependencyid and Job_Name:$Dependencytitle Completed and Response available in FileDependencySource Folder"
+return $Dependencyefilename
+}
+
+function UpdateJobDefinitionXML($JobTitle){
+Write-Host "Update Tag Manipulation Started for Job Definition $JobTitle"
+[xml]$xml=Get-Content -Path C:\Users\AL91261\TidalAutomation\JobDefinitionSource\$JobTitle.xml -Raw
+[xml]$final =$xml.GetElementsByTagName("entry")[0].OuterXml 
+$output=$final.GetElementsByTagName("tes:job")[0].OuterXml 
+$XMLheaders=Get-Content -Path "C:\Users\AL91261\TidalAutomation\PowerShellscripts\Headerfooter\Header.txt"
+$XMLfooters=Get-Content -Path "C:\Users\AL91261\TidalAutomation\PowerShellscripts\Headerfooter\Footer.txt"
+$UpdateXML=$XMLheaders+$output+$XMLfooters
+$UpdateXML | Out-File C:\Users\AL91261\TidalAutomation\UpdateJobDefinition\$JobTitle.xml
+Write-Host "Update Tag Manipulation Completed for Job Definition $JobTitle and available in UpdateJobDefinition Folder"
+}
+
+function UpdateJobDependecyXML($JobDepTitle){
+Write-Host "Update Tag Manipulation Started for Job Dependency $JobDepTitle"
+[xml]$JobDependencyxml=Get-Content -Path C:\Users\AL91261\TidalAutomation\JobDependencySource\$JobDepTitle.xml -Raw
+$elements="Default"
+$depjobid=$null
+$elements=$JobDependencyxml.GetElementsByTagName("tes:message").InnerXml
+$message="JobDependency: Record [null] not found."
+$depjobid=$JobDependencyxml.GetElementsByTagName("tes:depjobid").InnerXml
+if ($elements -ne $message -and $depjobid -ne $null )
+{
+[xml]$JobDependencyentry =$JobDependencyxml.GetElementsByTagName("entry")[0].OuterXml 
+$JobDependencyContent=$JobDependencyentry.GetElementsByTagName("tes:jobdependency")[0].OuterXml 
+$JobDependencyheaders=Get-Content -Path "C:\Users\AL91261\TidalAutomation\PowerShellscripts\Headerfooter\DependencyHeader.txt"
+$JobDependencyfooters=Get-Content -Path "C:\Users\AL91261\TidalAutomation\PowerShellscripts\Headerfooter\DependencyFooter.txt"
+$UpdateXML=$JobDependencyheaders+$JobDependencyContent+$JobDependencyfooters
+$UpdateXML | Out-File C:\Users\AL91261\TidalAutomation\UpdateJobDependency\$JobDepTitle.xml
+Write-Host "Update Tag Manipulation Completed for Job Dependency $JobDepTitle and available in UpdateJobDependency Folder"
+}
+else
+{
+Write-Host "No Depenendy available for Job Definition $JobDepTitle"
+}
+}
+
+function UpdateFileDependecyXML($JobDepTitle){
+Write-Host "Update Tag Manipulation Started for Job File Dependency $JobDepTitle"
+[xml]$JobDependencyxml=Get-Content -Path C:\Users\AL91261\TidalAutomation\FileDependencySource\$JobDepTitle.xml -Raw
+$elements="Default"
+$depjobid=$null
+$elements=$JobDependencyxml.GetElementsByTagName("tes:message").InnerXml
+$message="FileDependency: Record [null] not found."
+$depjobid=$JobDependencyxml.GetElementsByTagName("tes:depjobid").InnerXml
+if ($elements -ne $message -and $depjobid -ne $null )
+{
+[xml]$JobDependencyentry =$JobDependencyxml.GetElementsByTagName("entry")[0].OuterXml 
+$JobDependencyContent=$JobDependencyentry.GetElementsByTagName("tes:filedependency")[0].OuterXml 
+$JobDependencyheaders=Get-Content -Path "C:\Users\AL91261\TidalAutomation\PowerShellscripts\Headerfooter\FileDependencyHeader.txt"
+$JobDependencyfooters=Get-Content -Path "C:\Users\AL91261\TidalAutomation\PowerShellscripts\Headerfooter\FileDependencyFooter.txt"
+$UpdateXML=$JobDependencyheaders+$JobDependencyContent+$JobDependencyfooters
+$UpdateXML | Out-File C:\Users\AL91261\TidalAutomation\UpdateFileDependency\$JobDepTitle.xml
+Write-Host "Update Tag Manipulation Completed for Job File Dependency $JobDepTitle and available in UpdateFileDependency Folder"
+}
+else
+{
+Write-Host "No FileDepenendy available for Job Definition $JobDepTitle"
+}
+}
+
+function PrepareExcel($ExcelTitle){
+Write-Host "Started Appending row in JobExtract for $ExcelTitle"
+#$defnitiontag=[xml]([System.IO.File]::ReadAllText(".\TidalAutomation\UpdateJobDefinition\$ExcelTitle.xml"))
+$defnitiontag=[xml]([System.IO.File]::ReadAllText("C:\Users\AL91261\TidalAutomation\JobDefinitionSource\$ExcelTitle.xml"))
+$id=$defnitiontag.GetElementsByTagName("tes:id").InnerXml
+$type=$defnitiontag.GetElementsByTagName("tes:type").InnerXml
+$typename=$defnitiontag.GetElementsByTagName("tes:typename").InnerXml
+$name=$defnitiontag.GetElementsByTagName("tes:name").InnerXml
+$parentid=$defnitiontag.GetElementsByTagName("tes:parentid").InnerXml
+$parentname=$defnitiontag.GetElementsByTagName("tes:parentname").InnerXml
+$active=$defnitiontag.GetElementsByTagName("tes:active").InnerXml
+$effectivecalendarid=$defnitiontag.GetElementsByTagName("tes:effectivecalendarid").InnerXml
+$ownerid=$defnitiontag.GetElementsByTagName("tes:ownerid").InnerXml
+$ownername=$defnitiontag.GetElementsByTagName("tes:ownername").InnerXml
+$lastusermodifiedtime=$defnitiontag.GetElementsByTagName("tes:lastusermodifiedtime").InnerXml
+$lastusermodifiedtimeasstring=$defnitiontag.GetElementsByTagName("tes:lastusermodifiedtimeasstring").InnerXml
+$alias=$defnitiontag.GetElementsByTagName("tes:alias").InnerXml
+$dirty=$defnitiontag.GetElementsByTagName("tes:dirty").InnerXml
+$extendedinfo=$defnitiontag.GetElementsByTagName("tes:extendedinfo").InnerXml
+$successorsvalue=$defnitiontag.GetElementsByTagName("tes:successorsvalue").InnerXml
+$predecessorsvalue=$defnitiontag.GetElementsByTagName("tes:predecessorsvalue").InnerXml
+$runtimeusername=$defnitiontag.GetElementsByTagName("tes:runtimeusername").InnerXml
+$timewindowfromtime=$defnitiontag.GetElementsByTagName("tes:timewindowfromtime").InnerXml
+$timewindowfromtimeasstring=$defnitiontag.GetElementsByTagName("tes:timewindowfromtimeasstring").InnerXml
+$timewindowuntiltime=$defnitiontag.GetElementsByTagName("tes:timewindowuntiltime").InnerXml
+$timewindowuntiltimeasstring=$defnitiontag.GetElementsByTagName("tes:timewindowuntiltimeasstring").InnerXml
+$breachoffset=$defnitiontag.GetElementsByTagName("tes:breachoffset").InnerXml
+$riskoffset=$defnitiontag.GetElementsByTagName("tes:riskoffset").InnerXml
+$critical=$defnitiontag.GetElementsByTagName("tes:critical").InnerXml
+$childrencount=$defnitiontag.GetElementsByTagName("tes:childrencount").InnerXml
+$agentid=$defnitiontag.GetElementsByTagName("tes:agentid").InnerXml
+$effectiveagentid=$defnitiontag.GetElementsByTagName("tes:effectiveagentid").InnerXml
+$effectiveagentlistid=$defnitiontag.GetElementsByTagName("tes:effectiveagentlistid").InnerXml
+$agentname=$defnitiontag.GetElementsByTagName("tes:agentname").InnerXml
+$agenttype=$defnitiontag.GetElementsByTagName("tes:agenttype").InnerXml
+$agentostype=$defnitiontag.GetElementsByTagName("tes:agentostype").InnerXml
+$domain=$defnitiontag.GetElementsByTagName("tes:domain").InnerXml
+$allowunscheduled=$defnitiontag.GetElementsByTagName("tes:allowunscheduled").InnerXml
+$inheritcalendar=$defnitiontag.GetElementsByTagName("tes:inheritcalendar").InnerXml
+$inheritagent=$defnitiontag.GetElementsByTagName("tes:inheritagent").InnerXml
+$inherittimewindow=$defnitiontag.GetElementsByTagName("tes:inherittimewindow").InnerXml
+$parentactive=$defnitiontag.GetElementsByTagName("tes:parentactive").InnerXml
+$timewindowoption=$defnitiontag.GetElementsByTagName("tes:timewindowoption").InnerXml
+$command=$defnitiontag.GetElementsByTagName("tes:command").InnerXml
+$allowrerun=$defnitiontag.GetElementsByTagName("tes:allowrerun").InnerXml
+$calendaroffset=$defnitiontag.GetElementsByTagName("tes:calendaroffset").InnerXml
+$concurrency=$defnitiontag.GetElementsByTagName("tes:concurrency").InnerXml
+$createtime=$defnitiontag.GetElementsByTagName("tes:createtime").InnerXml
+$dependencylogic=$defnitiontag.GetElementsByTagName("tes:dependencylogic").InnerXml
+$compounddependencies=$defnitiontag.GetElementsByTagName("tes:compounddependencies").InnerXml
+$disablecarryover=$defnitiontag.GetElementsByTagName("tes:disablecarryover").InnerXml
+$durationestimated=$defnitiontag.GetElementsByTagName("tes:durationestimated").InnerXml
+$durationmaximum=$defnitiontag.GetElementsByTagName("tes:durationmaximum").InnerXml
+$durationminimum=$defnitiontag.GetElementsByTagName("tes:durationminimum").InnerXml
+$estimatedmethod=$defnitiontag.GetElementsByTagName("tes:estimatedmethod").InnerXml
+$excludeabnormalduration=$defnitiontag.GetElementsByTagName("tes:excludeabnormalduration").InnerXml
+$exitcodenormaloperator=$defnitiontag.GetElementsByTagName("tes:exitcodenormaloperator").InnerXml
+$fullpath=$defnitiontag.GetElementsByTagName("tes:fullpath").InnerXml
+$historyretention=$defnitiontag.GetElementsByTagName("tes:historyretention").InnerXml
+$inheritoptions=$defnitiontag.GetElementsByTagName("tes:inheritoptions").InnerXml
+$inheritrepeat=$defnitiontag.GetElementsByTagName("tes:inheritrepeat").InnerXml
+$isnotes=$defnitiontag.GetElementsByTagName("tes:isnotes").InnerXml
+$isrunbook=$defnitiontag.GetElementsByTagName("tes:isrunbook").InnerXml
+$jobdetailid=$defnitiontag.GetElementsByTagName("tes:jobdetailid").InnerXml
+$lastchangetime=$defnitiontag.GetElementsByTagName("tes:lastchangetime").InnerXml
+$nearoutage=$defnitiontag.GetElementsByTagName("tes:nearoutage").InnerXml
+$normalexitfromrange=$defnitiontag.GetElementsByTagName("tes:normalexitfromrange").InnerXml
+$normalexittorange=$defnitiontag.GetElementsByTagName("tes:normalexittorange").InnerXml
+$parameters=$defnitiontag.GetElementsByTagName("tes:parameters").InnerXml
+$priority=$defnitiontag.GetElementsByTagName("tes:priority").InnerXml
+$repeat=$defnitiontag.GetElementsByTagName("tes:repeat").InnerXml
+$rerundependency=$defnitiontag.GetElementsByTagName("tes:rerundependency").InnerXml
+$forcererun=$defnitiontag.GetElementsByTagName("tes:forcererun").InnerXml
+$saveoutputoption=$defnitiontag.GetElementsByTagName("tes:saveoutputoption").InnerXml
+$trackingmethod=$defnitiontag.GetElementsByTagName("tes:trackingmethod").InnerXml
+$waitOperator=$defnitiontag.GetElementsByTagName("tes:waitOperator").InnerXml
+$waitoperator=$defnitiontag.GetElementsByTagName("tes:waitoperator").InnerXml
+$runuserid=$defnitiontag.GetElementsByTagName("tes:runuserid").InnerXml
+$notes=$defnitiontag.GetElementsByTagName("tes:notes").InnerXml
+$concurrencytype=$defnitiontag.GetElementsByTagName("tes:concurrencytype").InnerXml
+$tags=$defnitiontag.GetElementsByTagName("tes:tags").InnerXml
+$sharedownerids=$defnitiontag.GetElementsByTagName("tes:sharedownerids").InnerXml
+$sharedowners=$defnitiontag.GetElementsByTagName("tes:sharedowners").InnerXml
+$terminateparentonerrorflag=$defnitiontag.GetElementsByTagName("tes:terminateparentonerrorflag").InnerXml
+$terminateparentonabnormalflag=$defnitiontag.GetElementsByTagName("tes:terminateparentonabnormalflag").InnerXml
+$terminateparentonabortflag=$defnitiontag.GetElementsByTagName("tes:terminateparentonabortflag").InnerXml
+$onterminatereqignoreflag=$defnitiontag.GetElementsByTagName("tes:onterminatereqignoreflag").InnerXml
+$onterminatereqabortactiveflag=$defnitiontag.GetElementsByTagName("tes:onterminatereqabortactiveflag").InnerXml
+$onterminatereqterminateparentflag=$defnitiontag.GetElementsByTagName("tes:onterminatereqterminateparentflag").InnerXml
+$unixprofile=$defnitiontag.GetElementsByTagName("tes:unixprofile").InnerXml
+$transactionid=$defnitiontag.GetElementsByTagName("tes:transactionid").InnerXml
+$data=$defnitiontag.GetElementsByTagName("tes:data").InnerXml
+$arrayitem=[PSCustomObject]@{
+id=$id
+type=$type
+typename=$typename
+name=$name
+parentid=$parentid
+parentname=$parentname
+active=$active
+effectivecalendarid=$effectivecalendarid
+ownerid=$ownerid
+ownername=$ownername
+lastusermodifiedtime=$lastusermodifiedtime
+lastusermodifiedtimeasstring=$lastusermodifiedtimeasstring
+alias=$alias
+dirty=$dirty
+extendedinfo=$extendedinfo
+successorsvalue=$successorsvalue
+predecessorsvalue=$predecessorsvalue
+runtimeusername=$runtimeusername
+timewindowfromtime=$timewindowfromtime
+timewindowfromtimeasstring=$timewindowfromtimeasstring
+timewindowuntiltime=$timewindowuntiltime
+timewindowuntiltimeasstring=$timewindowuntiltimeasstring
+breachoffset=$breachoffset
+riskoffset=$riskoffset
+critical=$critical
+childrencount=$childrencount
+agentid=$agentid
+effectiveagentid=$effectiveagentid
+effectiveagentlistid=$effectiveagentlistid
+agentname=$agentname
+agenttype=$agenttype
+agentostype=$agentostype
+domain=$domain
+allowunscheduled=$allowunscheduled
+inheritcalendar=$inheritcalendar
+inheritagent=$inheritagent
+inherittimewindow=$inherittimewindow
+parentactive=$parentactive
+timewindowoption=$timewindowoption
+command=$command
+allowrerun=$allowrerun
+calendaroffset=$calendaroffset
+concurrency=$concurrency
+createtime=$createtime
+dependencylogic=$dependencylogic
+compounddependencies=$compounddependencies
+disablecarryover=$disablecarryover
+durationestimated=$durationestimated
+durationmaximum=$durationmaximum
+durationminimum=$durationminimum
+estimatedmethod=$estimatedmethod
+excludeabnormalduration=$excludeabnormalduration
+exitcodenormaloperator=$exitcodenormaloperator
+fullpath=$fullpath
+historyretention=$historyretention
+inheritoptions=$inheritoptions
+inheritrepeat=$inheritrepeat
+isnotes=$isnotes
+isrunbook=$isrunbook
+jobdetailid=$jobdetailid
+lastchangetime=$lastchangetime
+nearoutage=$nearoutage
+normalexitfromrange=$normalexitfromrange
+normalexittorange=$normalexittorange
+parameters=$parameters
+priority=$priority
+repeat=$repeat
+rerundependency=$rerundependency
+forcererun=$forcererun
+saveoutputoption=$saveoutputoption
+trackingmethod=$trackingmethod
+waitOperator=$waitOperator
+runuserid=$runuserid
+notes=$notes
+concurrencytype=$concurrencytype
+tags=$tags
+sharedownerids=$sharedownerids
+sharedowners=$sharedowners
+terminateparentonerrorflag=$terminateparentonerrorflag
+terminateparentonabnormalflag=$terminateparentonabnormalflag
+terminateparentonabortflag=$terminateparentonabortflag
+onterminatereqignoreflag=$onterminatereqignoreflag
+onterminatereqabortactiveflag=$onterminatereqabortactiveflag
+onterminatereqterminateparentflag=$onterminatereqterminateparentflag
+unixprofile=$unixprofile
+transactionid=$transactionid
+data=$data}
+Write-Host "Completed Appending row in JobExtract for $ExcelTitle"
+return $arrayitem
+}
+
+function PrepareDependencyExcel($DependencyExcelTitle,$DEPENDENCYFLAG){
+Write-Host "Started Appending row in Dependency Excel for the title $DependencyExcelTitle and flag $DEPENDENCYFLAG "
+#if(Test-Path .\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml)
+if($DEPENDENCYFLAG="True" -AND (Test-Path C:\Users\AL91261\TidalAutomation\JobDependencySource\$DependencyExcelTitle.xml))
+{
+#[xml]$Dependencyxmltag=Get-Content -Path .\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml -Raw
+#$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText(".\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml"))
+$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText("C:\Users\AL91261\TidalAutomation\JobDependencySource\$DependencyExcelTitle.xml"))
+$id=$Dependencyxmltag.GetElementsByTagName("tes:id").InnerXml
+$jobid=$Dependencyxmltag.GetElementsByTagName("tes:jobid").InnerXml
+$jobname=$Dependencyxmltag.GetElementsByTagName("tes:jobname").InnerXml
+$type=$Dependencyxmltag.GetElementsByTagName("tes:type").InnerXml
+$depjobtype=$Dependencyxmltag.GetElementsByTagName("tes:depjobtype").InnerXml
+$depjobid=$Dependencyxmltag.GetElementsByTagName("tes:depjobid").InnerXml
+$depjobname=$Dependencyxmltag.GetElementsByTagName("tes:depjobname").InnerXml
+$depjobparent=$Dependencyxmltag.GetElementsByTagName("tes:depjobparent").InnerXml
+$depjobserviceid=$Dependencyxmltag.GetElementsByTagName("tes:depjobserviceid").InnerXml
+$operator=$Dependencyxmltag.GetElementsByTagName("tes:operator").InnerXml
+$status=$Dependencyxmltag.GetElementsByTagName("tes:status").InnerXml
+$logic=$Dependencyxmltag.GetElementsByTagName("tes:logic").InnerXml
+$ingroup=$Dependencyxmltag.GetElementsByTagName("tes:ingroup").InnerXml
+$ignoredep=$Dependencyxmltag.GetElementsByTagName("tes:ignoredep").InnerXml
+$variable_id=$Dependencyxmltag.GetElementsByTagName("tes:variable_id").InnerXml
+$keepmetifready=$Dependencyxmltag.GetElementsByTagName("tes:keepmetifready").InnerXml
+$lastchangetime=$Dependencyxmltag.GetElementsByTagName("tes:lastchangetime").InnerXml
+$lastusermodifiedtime=$Dependencyxmltag.GetElementsByTagName("tes:lastusermodifiedtime").InnerXml
+$inheritedagentname=$Dependencyxmltag.GetElementsByTagName("tes:inheritedagentname").InnerXml
+$ownerid=$Dependencyxmltag.GetElementsByTagName("tes:ownerid").InnerXml
+$variableid=$Dependencyxmltag.GetElementsByTagName("tes:variableid").InnerXml
+$varownerid=$Dependencyxmltag.GetElementsByTagName("tes:varownerid").InnerXml
+$jobconnectionid=$Dependencyxmltag.GetElementsByTagName("tes:jobconnectionid").InnerXml
+$occurrence=$Dependencyxmltag.GetElementsByTagName("tes:occurrence").InnerXml
+$Dependencyarrayitem=[PSCustomObject]@{
+id	=	$id
+jobid	=	$jobid
+jobname	=	$jobname
+type	=	$type
+depjobtype	=	$depjobtype
+depjobid	=	$depjobid
+depjobname	=	$depjobname
+depjobparent	=	$depjobparent
+depjobserviceid	=	$depjobserviceid
+operator	=	$operator
+status	=	$status
+logic	=	$logic
+ingroup	=	$ingroup
+ignoredep	=	$ignoredep
+variable_id	=	$variable_id
+keepmetifready	=	$keepmetifready
+lastchangetime	=	$lastchangetime
+lastusermodifiedtime	=	$lastusermodifiedtime
+inheritedagentname	=	$inheritedagentname
+ownerid	=	$ownerid
+variableid	=	$variableid
+varownerid	=	$varownerid
+jobconnectionid	=	$jobconnectionid
+occurrence	=	$occurrence
+}
+}
+elseif($DEPENDENCYFLAG="False")
+{
+#[xml]$Dependencyxmltag=Get-Content -Path .\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml -Raw
+#$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText(".\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml"))
+write-host "entered into false flage for $DependencyExcelTitle"
+$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText("C:\Users\AL91261\TidalAutomation\JobDefinitionSource\$DependencyExcelTitle.xml"))
+$jobid=$Dependencyxmltag.GetElementsByTagName("tes:id").InnerXml
+$jobname=$Dependencyxmltag.GetElementsByTagName("tes:name").InnerXml
+$Dependencyarrayitem=[PSCustomObject]@{
+id	=	""
+jobid	=	$jobid
+jobname	=	$jobname
+type	=	""
+depjobtype	=	""
+depjobid	=	""
+depjobname	=	""
+depjobparent	=	""
+depjobserviceid	=	""
+operator	=	""
+status	=	""
+logic	=	""
+ingroup	=	""
+ignoredep	=	""
+variable_id	=	""
+keepmetifready	=	""
+lastchangetime	=	""
+lastusermodifiedtime	=	""
+inheritedagentname	=	""
+ownerid	=	""
+variableid	=	""
+varownerid	=	""
+jobconnectionid	=	""
+occurrence	=	""
+}
+}
+Write-Host "Completed Appending row in Dependency Excel for $DependencyExcelTitle"
+return $Dependencyarrayitem
+}
+
+function PrepareFileDependencyExcel($DependencyExcelTitle,$DEPENDENCYFLAG){
+Write-Host "Started Appending row in FileDependency Excel for $DependencyExcelTitle"
+#if(Test-Path .\TidalAutomation\UpdateFileDependency\$DependencyExcelTitle.xml)
+if($DEPENDENCYFLAG="True" -and (Test-Path C:\Users\AL91261\TidalAutomation\FileDependencySource\$DependencyExcelTitle.xml))
+{
+#[xml]$Dependencyxmltag=Get-Content -Path .\TidalAutomation\UpdateFileDependency\$DependencyExcelTitle.xml -Raw
+#$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText(".\TidalAutomation\UpdateFileDependency\$DependencyExcelTitle.xml"))
+$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText("C:\Users\AL91261\TidalAutomation\FileDependencySource\$DependencyExcelTitle.xml"))
+$id=$Dependencyxmltag.GetElementsByTagName("tes:id").InnerXml
+$jobid=$Dependencyxmltag.GetElementsByTagName("tes:jobid").InnerXml
+$jobname=$Dependencyxmltag.GetElementsByTagName("tes:jobname").InnerXml
+$type=$Dependencyxmltag.GetElementsByTagName("tes:type").InnerXml
+$depjobtype=$Dependencyxmltag.GetElementsByTagName("tes:depjobtype").InnerXml
+$depjobid=$Dependencyxmltag.GetElementsByTagName("tes:depjobid").InnerXml
+$depjobserviceid=$Dependencyxmltag.GetElementsByTagName("tes:depjobserviceid").InnerXml
+$operator=$Dependencyxmltag.GetElementsByTagName("tes:operator").InnerXml
+$status=$Dependencyxmltag.GetElementsByTagName("tes:status").InnerXml
+$filename=$Dependencyxmltag.GetElementsByTagName("tes:filename").InnerXml
+$filetype=$Dependencyxmltag.GetElementsByTagName("tes:filetype").InnerXml
+$fileextent=$Dependencyxmltag.GetElementsByTagName("tes:fileextent").InnerXml
+$variable_id=$Dependencyxmltag.GetElementsByTagName("tes:variable_id").InnerXml
+$lastchangetime=$Dependencyxmltag.GetElementsByTagName("tes:lastchangetime").InnerXml
+$lastusermodifiedtime=$Dependencyxmltag.GetElementsByTagName("tes:lastusermodifiedtime").InnerXml
+$nodeid=$Dependencyxmltag.GetElementsByTagName("tes:nodeid").InnerXml
+$ownerid=$Dependencyxmltag.GetElementsByTagName("tes:ownerid").InnerXml
+$variableid=$Dependencyxmltag.GetElementsByTagName("tes:variableid").InnerXml
+$varownerid=$Dependencyxmltag.GetElementsByTagName("tes:varownerid").InnerXml
+$connectionid=$Dependencyxmltag.GetElementsByTagName("tes:connectionid").InnerXml
+$connectionname=$Dependencyxmltag.GetElementsByTagName("tes:connectionname").InnerXml
+$jobconnectionid=$Dependencyxmltag.GetElementsByTagName("tes:jobconnectionid").InnerXml
+$condition=$Dependencyxmltag.GetElementsByTagName("tes:condition").InnerXml
+$Dependencyarrayitem=[PSCustomObject]@{
+id=$id
+jobid=$jobid
+jobname=$jobname
+type=$type
+depjobtype=$depjobtype
+depjobid=$depjobid
+depjobserviceid=$depjobserviceid
+operator=$operator
+status=$status
+filename=$filename
+filetype=$filetype
+fileextent=$fileextent
+variable_id=$variable_id
+lastchangetime=$lastchangetime
+lastusermodifiedtime=$lastusermodifiedtime
+nodeid=$nodeid
+ownerid=$ownerid
+variableid=$variableid
+varownerid=$varownerid
+connectionid=$connectionid
+connectionname=$connectionname
+jobconnectionid=$jobconnectionid
+condition=$condition
+}
+}
+
+elseif($DEPENDENCYFLAG="False")
+{
+#[xml]$Dependencyxmltag=Get-Content -Path .\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml -Raw
+#$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText(".\TidalAutomation\UpdateJobDependency\$DependencyExcelTitle.xml"))
+$Dependencyxmltag=[xml]([System.IO.File]::ReadAllText("C:\Users\AL91261\TidalAutomation\JobDefinitionSource\$DependencyExcelTitle.xml"))
+$jobid=$Dependencyxmltag.GetElementsByTagName("tes:id").InnerXml
+$jobname=$Dependencyxmltag.GetElementsByTagName("tes:name").InnerXml
+$Dependencyarrayitem=[PSCustomObject]@{
+id	=	""
+jobid	=	$jobid
+jobname	=	$jobname
+type=""
+depjobtype=""
+depjobid=""
+depjobserviceid=""
+operator=""
+status=""
+filename=""
+filetype=""
+fileextent=""
+variable_id=""
+lastchangetime=""
+lastusermodifiedtime=""
+nodeid=""
+ownerid=""
+variableid=""
+varownerid=""
+connectionid=""
+connectionname=""
+jobconnectionid=""
+condition=""
+}
+}
+
+Write-Host "Completed Appending row in FileDependency Excel for $DependencyExcelTitle"
+return $Dependencyarrayitem
+}
+
+TRY
+{
+$FolderLevel="23"
+$JobGroupLevel=$null #
+$Grouptitle=$null #"CPC087A_1D1000909_CPEC_MEDICARE_FILE_PUBLISH"#"DOC011_2D1002310_MACESS_MEMBER_COMMUNICATION_VENDOR_LOAD"#"CPC010A_1D1000909_CPEC_XOVR_CLAIMS_CREATION"#$null#"CPC010A_0010_CPEC_XOVR_CLAIMS_LOAD"
+$JobLevel=$null#"25485" #"37091"#$null#"18237"
+$JobTitle=$null#"CPC990A_0010_PMP_UI_Check" #"jerushautomationtesting"#$null#"CPC010A_0010_CPEC_XOVR_CLAIMS_LOAD"#""
+$array= @()
+$Dependencyarray= @()
+$FileDependencyarray= @()
+
+if($FolderLevel -ne $null)
+{
+Write-Host "Entered into Folder Level Code"
+Cleanup
+Write-Host "Started XML Extraction and Manipulation Process for the JobGroups Under Folder ID:$FolderLevel"
+Write-Host "Started Extraction of JobGroups_ID Under Folder_ID:$FolderLevel"  
+$JobGroups=Invoke-JobGetIDs $FolderLevel
+foreach($JobGroup in $JobGroups)
+{
+$JobGroupLevel=$JobGroup.id
+$Grouptitle=$JobGroup.title
+#if ($Grouptitle -in( "CPC001A_1D1000909_PRE_CKMM_ALL","CPC001B_1D1000909_PRE_CKMM_ALL","CPC009A_1D1000909_FACETS_CKMM_ALL","CPC009B_1W1000909_FACETS_CKMM_ALL","CPC009C_3A1000909_ErCmcRunCkmm","CPC012C_1A1000909_ADHOC_FACETS_CKMM_CLAIM"))
+if ($Grouptitle -in("CPC001A_1D1000909_PRE_CKMM_ALL","CPC001B_1D1000909_PRE_CKMM_ALL","CPC009A_1D1000909_FACETS_CKMM_ALL","CPC009B_1W1000909_FACETS_CKMM_ALL","CPC009C_3A1000909_ErCmcRunCkmm","CPC012C_1A1000909_ADHOC_FACETS_CKMM_CLAIM","CPC088M_1M1000923_MVS_LETTERS","CPC0111_1D1000909_NEG_FILE_LOAD","CPC0222_1D1000909_NEGBAL_FILE_PROCESSING","CPC0145_2D1000909_NA_RECEIPT_LOAD","CPC0155_2D1000909_RECEIPT_WRITEOFF_EXTRACT","CPC0330_2D1000909_WRITEOFF_RETURN_File","CPC0331_2D1000909_RECEIPT_RETURN_File","CPC0380_1D1000909_MANRED_RETURN_File_back","CPC0390_1D1000909_VOIDS_RETURN_File_back","CPC0146_2D1000909_RF_RECEIPT_PROCESS","CPC0147_2D1000909_RF_RECEIPT_RETURN_LOAD"))
+{
+Write-Host "Started XML Extraction and Manipulation Process for the Job Under JobGroup ID:$JobGroupLevel"
+Write-Host "Started Extraction of Job Under JobGroup ID:$JobGroupLevel" 
+$array +=JobDefinition $JobGroupLevel  $Grouptitle
+$Dependencyarray +=DependencyDefinition $JobGroupLevel  $Grouptitle
+$FileDependencyarray +=FileDependencyDefinition $JobGroupLevel  $Grouptitle
+$Jobs=Invoke-JobGetIDs $JobGroupLevel 
+if($Jobs.id)
+{
+write-host "if block code"
+foreach($Job in $Jobs)
+{
+Write-Host "Started Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+$array +=JobDefinition $Job.id $Job.title
+$Dependencyarray +=DependencyDefinition $Job.id $Job.title
+$FileDependencyarray +=FileDependencyDefinition $Job.id $Job.title
+Write-Host "Completed Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+}
+}
+else
+{
+write-host "else block code"
+foreach($Job in $Jobs.entry)
+{
+Write-Host "Started Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+$array +=JobDefinition $Job.id $Job.title
+$Dependencyarray +=DependencyDefinition $Job.id $Job.title
+$FileDependencyarray +=FileDependencyDefinition $Job.id $Job.title
+Write-Host "Completed Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+}
+}
+}
+else
+{Write-Host " Job Group name : $Grouptitle Not matching the Pattern" }
+
+}
+Write-Host "Export_excel Started"
+#$array | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\JobExtract_$FolderLevel.xlsx" -AutoSize -Numberformat "@"
+$array|Select-Object id,type,typename,name,parentid,parentname,effectiveagentid,effectiveagentlistid,agentname,command,parameters,inheritagent,fullpath,active,lastusermodifiedtime | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\UpdateJobExtract_$FolderLevel.xlsx" -AutoSize -TableStyle Medium2 -Numberformat "@" 
+$Dependencyarray | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\DependencyExtract_$FolderLevel.xlsx" -AutoSize -Numberformat "@"
+$FileDependencyarray | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\FileDependencyExtract_$FolderLevel.xlsx" -AutoSize -Numberformat "@"
+Write-Host "Export_excel Completed"
+Write-Host "Completed XML Extraction and Manipulation Process for the Job Under JobGroup ID:$FolderLevel"
+Write-Host "Exited from Folder Level Code"
+}
+
+elseif($JobGroupLevel -ne $null -and $Grouptitle -ne $null)
+{
+Write-Host "Entered into JobGroup Level Code"
+Cleanup
+Write-Host "Started XML Extraction and Manipulation Process for the Job Under JobGroup ID:$JobGroupLevel"
+Write-Host "Started Extraction of Job Under JobGroup ID:$JobGroupLevel" 
+$array +=JobDefinition $JobGroupLevel  $Grouptitle
+$Dependencyarray +=DependencyDefinition $JobGroupLevel  $Grouptitle
+$FileDependencyarray +=FileDependencyDefinition $JobGroupLevel  $Grouptitle
+$Jobs=Invoke-JobGetIDs $JobGroupLevel 
+if($Jobs.id)
+{
+write-host "if block code"
+foreach($Job in $Jobs)
+{
+Write-Host "Started Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+$array +=JobDefinition $Job.id $Job.title
+$Dependencyarray +=DependencyDefinition $Job.id $Job.title
+$FileDependencyarray +=FileDependencyDefinition $Job.id $Job.title
+Write-Host "Completed Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+}
+}
+else
+{
+write-host "else block code"
+foreach($Job in $Jobs.entry)
+{
+Write-Host "Started Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+$array +=JobDefinition $Job.id $Job.title
+$Dependencyarray +=DependencyDefinition $Job.id $Job.title
+$FileDependencyarray +=FileDependencyDefinition $Job.id $Job.title
+Write-Host "Completed Extraction of Job_Definition for Job ID:$($Job.id) and Title:$($Job.title)"
+}
+}
+Write-Host "Export_excel Started"
+$array | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\JobExtract_$JobGroupLevel.xlsx" -AutoSize -Numberformat "@"
+$array|Select-Object id,type,typename,name,parentid,parentname,effectiveagentid,effectiveagentlistid,agentname,command,parameters,inheritagent,fullpath,active,lastusermodifiedtime | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\UpdateJobExtract_$JobGroupLevel.xlsx" -AutoSize -Numberformat "@"
+$Dependencyarray | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\DependencyExtract_$JobGroupLevel.xlsx" -AutoSize -Numberformat "@"
+$FileDependencyarray | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\FileDependencyExtract_$JobGroupLevel.xlsx" -AutoSize -Numberformat "@"
+Write-Host "Export_excel Completed"
+Write-Host "Completed XML Extraction and Manipulation Process for the Job Under JobGroup ID:$JobGroupLevel"
+Write-Host "Exited from JobGroup Level Code"
+}
+
+elseif($JobLevel -ne $null -and $JobTitle -ne $null)
+{
+Write-Host "Entered into Job Level Code"
+Cleanup
+Write-Host "Started XML Extraction and Manipulation Process for the Job ID:$JobLevel"
+Write-Host "Started Extraction of Job_Definition for Job ID:$JobLevel and Title:$JobTitle"
+$array +=JobDefinition $JobLevel $JobTitle
+#$Dependencyarray +=DependencyDefinition $JobLevel $JobTitle
+#$FileDependencyarray +=FileDependencyDefinition $JobLevel $JobTitle
+
+Write-Host "Completed Extraction of Job_Definition for Job ID:$JobLevel and Title:$JobTitle"
+Write-Host "Export_excel Started"
+$array | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\JobExtract_$JobLevel.xlsx" -AutoSize -Numberformat "@"
+$array|Select-Object id,type,typename,name,parentid,parentname,effectiveagentid,effectiveagentlistid,agentname,command,parameters,inheritagent,fullpath,active,lastusermodifiedtime | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\UpdateJobExtract_$JobLevel.xlsx" -AutoSize -Numberformat "@"
+#$Dependencyarray | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\DependencyExtract_$JobLevel.xlsx" -AutoSize -Numberformat "@"
+#$FileDependencyarray | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\FileDependencyExtract_$JobLevel.xlsx" -AutoSize -Numberformat "@"
+Write-Host "Export_excel Completed"
+Write-Host "Completed XML Extraction and Manipulation Process for the Job ID:$JobLevel"
+Write-Host "Exited from Job Level Code"
+}
+}
+
+CATCH
+{   
+$ErrorMessage = $_.Exception.Message
+Write-Host $ErrorMessage
+}
