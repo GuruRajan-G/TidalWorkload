@@ -1,0 +1,52 @@
+cls
+$apiurl="https://tidalplat.internal.das/api/tes-6.5/postbody"
+$GFolderLevel="43"
+$GAPMNUMBER="APM1000105"
+$Gpattern="*1000105*"
+$GEnvironment="PLAT"
+
+$FolderLevel=$GFolderLevel
+$APMNUMBER=$GAPMNUMBER
+$pattern=$Gpattern
+$Environment=$GEnvironment
+$ExtractFilename=$APMNUMBER+"_"+$Environment+"_"+$FolderLevel
+$extractedvalues=@()
+$ouput=@()
+$folderpath="C:\Users\AL91261\TidalAutomation\VariableExtract\"
+$excelfiles=Get-ChildItem -Path $folderpath -Filter "*.xlsx"
+foreach($file in $excelfiles)
+{
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-Processing file:$($file.FullName) - Started"
+$data= Import-Excel -Path $file.FullName
+foreach($row in $data){
+foreach ($column in $row.PSObject.Properties){
+$cellvalue= $column.Value
+if($cellvalue -match "&lt;(.*?)&gt;")
+{
+$Matches =[regex]::Matches($cellvalue , "&lt;(.*?)&gt;")
+$extractedvalues=$Matches.Value -replace "&lt;|&gt;" | ForEach-Object {
+$splitvalues= $_ -split "\."
+$arrayitem=[PSCustomObject]@{
+VariableName=$splitvalues[0]
+VariableID=$splitvalues[1]}
+$ouput+= $arrayitem
+}
+}
+}
+}
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-Processing file:$($file.FullName) - Completed"
+}
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-DirtyExcel - Started"
+$ouput | Export-Excel -Path  "C:\Users\AL91261\TidalAutomation\VariableExtract\DirtyExcel.xlsx" -AutoSize -Numberformat "@"
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-DirtyExcel - Completed"
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-DirtyData - Started"
+$dirtydata= Import-Excel -Path "C:\Users\AL91261\TidalAutomation\VariableExtract\DirtyExcel.xlsx"
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-DirtyData - Completed"
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-Noblank - Started"
+$noblankdata = $dirtydata | Where-Object { $_.VariableName -ne $null -and $_.VariableID -ne $null}
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-Noblank - Completed"
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-Unique - Started"
+$uniquedata = $noblankdata| Sort-Object VariableName,VariableID -Unique
+Write-Host "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')-Unique - Completed"
+$uniquedata| Export-Excel -Path  "C:\Users\AL91261\TidalAutomation\MappingExcel\$ExtractFilename.xlsx" -WorksheetName "Unique_Variables" -TableStyle Medium2 -AutoSize -Numberformat "@"
+Remove-Item C:\Users\AL91261\TidalAutomation\VariableExtract\*.*
