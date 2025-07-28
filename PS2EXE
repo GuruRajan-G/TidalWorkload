@@ -1,0 +1,2 @@
+cls
+Invoke-PS2EXE -inputFile \Users\AL91261\TidalAutomation\PowerShellscripts\TIDALEXTRACTOR_INTEGRATION.ps1 -outputFile \Users\AL91261\TidalAutomation\EXECUTABLE\TIDALINITIALVERSION.EXE -noConsole
