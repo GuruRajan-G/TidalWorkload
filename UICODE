@@ -1,0 +1,208 @@
+CLS
+Add-Type -AssemblyName PresentationFramework
+function Write-Log
+{
+param(
+[string]$message,
+[string]$type=""
+)
+$timestamp= (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+if($type -eq "ERROR")
+{
+$formattedmessage ="$timestamp - $message"
+$OutputTextBox.Dispatcher.Invoke([Action]{
+$run= New-Object System.Windows.Documents.Run("`n$formattedmessage")
+$run.Foreground="Red"
+$OutputTextBox.Inlines.Add($run)
+$scrollviewer.ScrollToEnd()
+},"Normal")
+[System.Windows.Forms.Application]::DoEvents()
+}
+ELSE
+{
+$formattedmessage ="$timestamp - $message"
+$OutputTextBox.Dispatcher.Invoke([Action]{
+$run= New-Object System.Windows.Documents.Run("`n$formattedmessage")
+$run.Foreground="Lime"
+$OutputTextBox.Inlines.Add($run)
+$scrollviewer.ScrollToEnd()
+},"Normal")
+[System.Windows.Forms.Application]::DoEvents()
+}
+}
+[XML] $xaml =@"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TIDAL_EXTRACTOR" Height="550" Width="850" SizeToContent="Manual">
+        <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"></ColumnDefinition>
+            <ColumnDefinition Width="500*"></ColumnDefinition>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Column="0" Grid.Row="0" Margin="5" BorderBrush="Black" BorderThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Grid Grid.Column="0" Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Enter Username:" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="0" Grid.Column="0" Margin="5" />
+                <TextBox x:Name="InputUsernamebox" Width="150" Grid.Row="0" Grid.Column="1" Margin="5" />
+                <TextBlock Text="Enter Password:" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="1" Grid.Column="0" Margin="5" />
+                <TextBox x:Name="InputPasswordbox" Width="150" Grid.Row="1" Grid.Column="1" Margin="5" />
+                <TextBlock Text="Select API:" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="2" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="Options" Width="150" Grid.Row="2" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="https://tidalglddeva.internal.das/api/tes-6.5/postbody"/>
+                    <ComboBoxItem Content="https://tidalglda.internal.das/api/tes-6.5/postbody"/>
+                    <ComboBoxItem Content="https://tidalplat.internal.das/api/tes-6.5/postbody"/>
+                    <ComboBoxItem Content="https://tidaldeva.internal.das/api/tes-6.5/postbody"/>
+                    <ComboBoxItem Content="https://tidalqaa.internal.das/api/tes-6.5/postbody"/>
+                    <ComboBoxItem Content="https://tidalprod.internal.das/api/tes-6.5/postbody"/>
+                </ComboBox>
+                <TextBlock Text="Folder_Number" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="3" Grid.Column="0" Margin="5" />
+                <TextBox x:Name="Folder_Number" Width="150" Grid.Row="3" Grid.Column="1" Margin="5" />
+                <TextBlock Text="Search_Pattern" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="4" Grid.Column="0" Margin="5" />
+                <TextBox x:Name="Search_Pattern" Width="150" Grid.Row="4" Grid.Column="1" Margin="5" />
+                <TextBlock Text="FileDependency" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="5" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="Filedependencyoption" Width="150" Grid.Row="5" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="Required"/>
+                    <ComboBoxItem Content="NotRequired"/>
+                </ComboBox>
+                <TextBlock Text="JobDependency" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="6" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="Jobdependencyoption" Width="150" Grid.Row="6" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="Required"/>
+                    <ComboBoxItem Content="NotRequired"/>
+                </ComboBox>
+                <TextBlock Text="VariableExtract" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="7" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="Variabledependencyoption" Width="150" Grid.Row="7" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="Required"/>
+                    <ComboBoxItem Content="NotRequired"/>
+                </ComboBox>
+                <TextBlock Text="GroupLevel" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="8" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="Groupleveloption" Width="150" Grid.Row="8" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="True"/>
+                    <ComboBoxItem Content="False"/>
+                </ComboBox>
+                <TextBlock Text="JobLevel" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="9" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="Jobleveloption" Width="150" Grid.Row="9" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="True"/>
+                    <ComboBoxItem Content="False"/>
+                </ComboBox>
+                <TextBlock Text="APMLevel" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="10" Grid.Column="0" Margin="5" />
+                <ComboBox x:Name="APMleveloption" Width="150" Grid.Row="10" Grid.Column="1" Margin="5">
+                    <ComboBoxItem Content="True"/>
+                    <ComboBoxItem Content="False"/>
+                </ComboBox>
+                <TextBlock Text="SPECIFY_Path" FontWeight="Bold" VerticalAlignment="Center" Grid.Row="11" Grid.Column="0" Margin="5" />
+                <TextBox x:Name="SPECIFY_Path" Width="150" Grid.Row="11" Grid.Column="1" Margin="5" />
+                
+            </Grid>
+        </Border>
+        <Border Grid.Column="1" Grid.Row="0" Margin="5" BorderBrush="Black" BorderThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="Black">
+               <TextBlock x:Name="OutputTextBox"  Foreground="Lime" FontSize="14" TextWrapping="Wrap" Padding="10"/>
+            </ScrollViewer>
+        </Border>
+        <Border Grid.Column="1" Grid.Row="1" Margin="5" BorderBrush="Black" BorderThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Grid>
+                <Button x:Name="QuitButton" Content="Quit" HorizontalAlignment="Left" Margin="320,0,0,0" VerticalAlignment="Top" Width="75"/>
+                <Button x:Name="ClearButton" Content="Clear" HorizontalAlignment="Left" Margin="120,0,0,0" VerticalAlignment="Top" Width="75"/>
+            </Grid>
+        </Border>
+        <Border Grid.Column="0" Grid.Row="1" Margin="5" BorderBrush="Black" BorderThickness="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Button x:Name="ExtractButton" Content="Extract" HorizontalAlignment="Left" Margin="88,0,0,0" Grid.Row="1" VerticalAlignment="Top" Width="76" Grid.Column="0"/>
+        </Border>
+    </Grid>
+</Window>
+"@
+$reader = New-Object System.Xml.XmlNodeReader $xaml
+$form= [System.Windows.Markup.XamlReader]::Load($reader)
+$InputUsernamebox= $form.FindName("InputUsernamebox")
+$InputPasswordbox= $form.FindName("InputPasswordbox")
+$APIOptions= $form.FindName("Options")
+$Folder_Number= $form.FindName("Folder_Number")
+$Search_Pattern= $form.FindName("Search_Pattern")
+$Filedependencyoption= $form.FindName("Filedependencyoption")
+$Jobdependencyoption= $form.FindName("Jobdependencyoption")
+$Variabledependencyoption= $form.FindName("Variabledependencyoption")
+$Groupleveloption= $form.FindName("Groupleveloption")
+$Jobleveloption= $form.FindName("Jobleveloption")
+$APMleveloption= $form.FindName("APMleveloption")
+$SPECIFY_Path= $form.FindName("SPECIFY_Path")
+$OutputTextBox=$form.FindName("OutputTextBox")
+$scrollviewer=$OutputTextBox.Parent
+$quitbutton= $form.FindName("QuitButton")
+$ClearButton= $form.FindName("ClearButton")
+$ExtractButton= $form.FindName("ExtractButton")
+$quitbutton.Add_click({$form.Close()})
+$ClearButton.Add_click({$OutputTextBox.Dispatcher.Invoke([Action]{
+$OutputTextBox.Text=""
+},"Normal")})
+
+$ExtractButton.Add_click({
+$ExtractButton.IsEnabled=$false
+$quitbutton.IsEnabled=$false
+$ClearButton.IsEnabled=$false
+try{
+Write-Log "Initiated"
+
+Write-Log $InputUsernamebox.Text
+
+Write-Log $InputPasswordbox.Text
+
+Write-Log $APIOptions.Text
+
+Write-Log $Folder_Number.Text
+
+Write-Log $Search_Pattern.Text
+
+Write-Log $Filedependencyoption.Text
+
+Write-Log $Jobdependencyoption.Text
+
+Write-Log $Variabledependencyoption.Text
+
+Write-Log $Groupleveloption.Text
+
+Write-Log $Jobleveloption.Text
+
+Write-Log $APMleveloption.Text
+
+Write-Log $SPECIFY_Path.Text
+Write-Log "completed"
+
+}
+
+catch{
+$ErrorMessage = $_.Exception.Message
+Write-Log $ErrorMessage "Error"
+}
+
+finally{
+$ExtractButton.IsEnabled=$true
+$quitbutton.IsEnabled=$true
+$ClearButton.IsEnabled=$true
+}
+
+})
+
+$form.ShowDialog() | Out-Null
