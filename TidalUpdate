@@ -1,0 +1,48 @@
+cls
+function Get-Headers{
+$username = "XXX"
+$password = "XXX"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"}
+return $headers
+}
+function Invoke-UpdateJob($JobID)
+{
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:Job.update xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+            <tes:job xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+            <tes:id>$JobID</tes:id>
+            <tes:agentlistid>3</tes:agentlistid>
+            <tes:command>&lt;2022_SSIS_Direct_DTEXEC_CMD.4195&gt;</tes:command>
+            <tes:workingdirectory></tes:workingdirectory>
+            </tes:job>
+	</tes:Job.update>
+</entry>
+"@
+Write-Host "Invoke JobUpdate API Request for JobID:$JobID and JobName:$JobName Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody
+Write-Host "Invoke JobUpdate API Request for JobID:$JobID and JobName:$JobName Completed"
+return $Response
+}
+try
+{
+$ExcelData=Import-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\GCP_CommandUpdate.xlsx"
+foreach($item in $ExcelData)
+{
+$JobID=$item."id"
+$JobName=$item."name"
+Invoke-UpdateJob $JobID $JobName
+}
+}
+CATCH
+{   
+$ErrorMessage = $_.Exception.Message
+Write-Host $ErrorMessage
+}
