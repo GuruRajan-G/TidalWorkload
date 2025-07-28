@@ -1,0 +1,12 @@
+cls
+$file1="C:\Users\AL91261\TidalAutomation\SyncupTidaljobs\UpdateJobExtract_23.xlsx"
+$file2="C:\Users\AL91261\TidalAutomation\SyncupTidaljobs\UpdateJobExtract_24.xlsx"
+$file3="C:\Users\AL91261\TidalAutomation\SyncupTidaljobs\UpdateJobExtract_36962.xlsx"
+
+$data1=Import-Excel -Path $file1
+$data2=Import-Excel -Path $file2
+$data3=Import-Excel -Path $file3
+
+$mergeddata= $data1 + $data2 + $data3
+
+$mergeddata | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\CPEC_CLEANUP.xlsx" -AutoSize -Numberformat "@"
