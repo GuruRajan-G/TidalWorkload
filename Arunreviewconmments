@@ -1,0 +1,26 @@
+$JobExtract=Import-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\APM1000909_PLAT_JobExtract_11.xlsx"
+$DependencyExtract=Import-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\APM1000909_PLAT_DependencyExtract_11.xlsx"
+$dependencymap= @{}
+foreach($dependency in $DependencyExtract)
+{
+$jobid=$dependency."jobid"
+if(-not $dependencymap.ContainsKey($jobid)){
+$dependencymap[$jobid]= @()
+}
+$dependencymap[$jobid]+=$dependency."depjobname"
+}
+$result =@()
+
+foreach($job in $JobExtract)
+{
+$jobid=$job."id"
+$jobname=$job."name"
+$dependencies = $dependencymap[$jobid] -join ",`n"
+$result += [PSCustomObject]@{
+id=$jobid
+name=$jobname
+dependency=$dependencies
+}
+}
+
+$result  | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\Lookup.xlsx" -AutoSize -Numberformat "@"
