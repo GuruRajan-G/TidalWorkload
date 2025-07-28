@@ -1,0 +1,2 @@
+CLS
+Get-ChildItem -Path "\\stcppgdeu201.file.core.windows.net\cpp-storageshare" -Directory -Recurse | Select-Object -ExpandProperty FullName | Out-File -FilePath "\\stcppgdeu201.file.core.windows.net\cpp-storageshare\Directories.txt"
