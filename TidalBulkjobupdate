@@ -1,0 +1,118 @@
+CLS
+function Get-Headers{
+$username = "xxxx"
+$password = "xxxx"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"}
+return $headers
+}
+#function PrepareAPIRequestXML($JobTitle,$searchcmd,$replacecmd,$searchparam,$replaceparam)
+function PrepareAPIRequestXML ($updateid,$updatetype,$updatetypename,$updatename,$updateparentid,$updateparentname,$updateeffectiveagentid,$updateeffectiveagentlistid,$updateagentname,$updatecommand,$updateparameters,$updateinheritagent,$updatefullpath,$updateactive,$updateagentlistid)
+{
+$Sourcepath="C:\Users\AL91261\TidalAutomation\JobUpdater"
+$SourceFile=Get-ChildItem -Path $Sourcepath
+$SourceFile.FullName
+$DestinationPath="C:\Users\AL91261\TidalAutomation\APIRequest"
+if(Test-Path $SourceFile.FullName)
+{
+Write-Host "Started Copying UpdateJobDefinition XML to APIRequest Folder for $updatename"
+Copy-Item $SourceFile.FullName -Destination $DestinationPath 
+$DestinationFile=Get-ChildItem -Path $DestinationPath -Filter "InformaticaJobUpdate.xml"
+Rename-Item  -Path $DestinationFile.FullName -NewName "$updatename.xml"
+$ApiRequest=Get-ChildItem -Path $DestinationPath  -Filter "$updatename.xml"
+[xml]$defnitiontag=Get-Content -Path $ApiRequest.FullName
+
+$xmlid=$defnitiontag.GetElementsByTagName("tes:id")[0]
+$xmltype=$defnitiontag.GetElementsByTagName("tes:type")[0]
+$xmltypename=$defnitiontag.GetElementsByTagName("tes:typename")[0]
+$xmlname=$defnitiontag.GetElementsByTagName("tes:name")[0]
+$xmlparentid=$defnitiontag.GetElementsByTagName("tes:parentid")[0]
+$xmlparentname=$defnitiontag.GetElementsByTagName("tes:parentname")[0]
+$xmlactive=$defnitiontag.GetElementsByTagName("tes:active")[0]
+$xmleffectiveagentid=$defnitiontag.GetElementsByTagName("tes:effectiveagentid")[0]
+$xmleffectivelistid=$defnitiontag.GetElementsByTagName("tes:effectiveagentlistid")[0]
+$xmlagentname=$defnitiontag.GetElementsByTagName("tes:agentname")[0]
+$xmlagentlistid=$defnitiontag.GetElementsByTagName("tes:agentlistid")[0]
+$xmlinheritagent=$defnitiontag.GetElementsByTagName("tes:inheritagent")[0]
+$xmlcommand=$defnitiontag.GetElementsByTagName("tes:command")[0]
+$xmlfullpath=$defnitiontag.GetElementsByTagName("tes:fullpath")[0]
+$xmlparameters=$defnitiontag.GetElementsByTagName("tes:parameters")[0]
+$xmlid.InnerXml=$updateid
+$xmltype.InnerXml=$updatetype
+$xmltypename.InnerXml=$updatetypename
+$xmlname.InnerXml=$updatename
+$xmlparentid.InnerXml=$updateparentid
+$xmlparentname.InnerXml=$updateparentname
+$xmlactive.InnerXml=$updateactive
+$xmleffectiveagentid.InnerXml=$updateeffectiveagentlistid
+$xmleffectivelistid.InnerXml=$updateeffectiveagentid 
+$xmlagentname.InnerXml=$updateagentname
+$xmlagentlistid.InnerXml=$updateagentlistid
+$xmlinheritagent.InnerXml=$updateinheritagent
+$xmlcommand.InnerXml=$updatecommand
+$xmlfullpath.InnerXml=$updatefullpath
+$xmlparameters.InnerXml=$updateparameters
+$defnitiontag.save($ApiRequest.FullName)
+}
+else
+{
+Write-Host "UpdateJobDefinition is not available for the $Jobname"
+
+}
+}
+
+function Invoke-JobUpdate($Jobname){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+Write-Output "Processing Update Request for $Jobname"
+$SourcePath="C:\Users\AL91261\TidalAutomation\APIRequest"
+$SourceFile=Get-ChildItem -Path $Sourcepath  -Filter "$Jobname.xml"
+#$xmlContent= Get-Content -Path $SourceFile.FullName -Raw
+$xmlContent=[xml]([System.IO.File]::ReadAllText(".\TidalAutomation\APIRequest\$Jobname.xml"))
+#write-Output $xmlContent.entry
+$response = Invoke-WebRequest -Uri $url -Method POST -Headers $Requestheaders -Body $xmlContent
+$response.Content | Out-File -FilePath .\TidalAutomation\APIResponse\$Jobname.xml  -Encoding utf8
+Write-Output "Update Request completed for $JobTitle and response available in APIUpdateResponse Folder"
+}
+
+try
+{
+$ExcelData=Import-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\UpdateJobExtract_90.xlsx"
+Write-Host "Started Clean-up Old Logs from the Request and Response Folder"
+Remove-Item C:\Users\AL91261\TidalAutomation\APIRequest\*.xml*
+Remove-Item C:\Users\AL91261\TidalAutomation\APIResponse\*.xml*
+Write-Host "Completed Clean-up Old Logs from the Request and Response Folder"
+foreach($item in $ExcelData)
+{
+$updateid= $item.id
+$updatetype= $item.type
+$updatetypename = $item.typename
+$updatename=$item.name
+$updateparentid= $item.parentid
+$updateparentname= $item.parentname
+$updateeffectiveagentid	=$item.effectiveagentid
+$updateeffectiveagentlistid	=$item.effectiveagentlistid
+$updateagentname	=$item.agentname
+$updateagentlistid =$item.agentlistid
+$updatecommand=$item.command
+$updateparameters=$item.parameters
+$updateinheritagent=$item.inheritagent
+$updatefullpath=$item.fullpath
+$updateactive=$item.active
+#$updateagentid	=$item.agentid	
+#$updateruntimeusername=$item.runtimeusername
+#$updaterunuserid=$item.runuserid
+#$updateagenttype = $item.agenttype	
+#$updatedomain   = $item.domain
+PrepareAPIRequestXML $updateid $updatetype $updatetypename $updatename $updateparentid $updateparentname $updateeffectiveagentid $updateeffectiveagentlistid $updateagentname $updatecommand $updateparameters $updateinheritagent $updatefullpath $updateactive $updateagentlistid
+#Invoke-JobUpdate $updatename
+}
+}
+CATCH
+{   
+$ErrorMessage = $_.Exception.Message
+Write-Host $ErrorMessage
+}
