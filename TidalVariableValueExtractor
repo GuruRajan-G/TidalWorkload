@@ -1,0 +1,108 @@
+cls
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$apiurl="https://tidalplat.internal.das/api/tes-6.5/postbody"
+$GFolderLevel="43"
+$GAPMNUMBER="APM1000105"
+$Gpattern="*1000105*"
+$GEnvironment="PLAT"
+
+function Get-Headers{
+$username = "xxxx"
+$password = "xxxxx"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"}
+return $headers
+}
+function VariableDefinition($VariableName,$VariableID){
+$runidarray=@()
+$defnitiontag=Invoke-VariableGet $VariableName $VariableID
+$runidarray += PrepareVariableExcel $VariableName $VariableID $defnitiontag
+return $runidarray
+}
+
+function Invoke-VariableGet($VariableName,$VariableID)
+{
+$url = $apiurl
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:Variable.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>$VariableID</id>
+	</tes:Variable.get>
+</entry>
+"@
+Write-Host "Invoke VariableGet API Request for VariableID:$VariableID and VariableName:$VariableName Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody -WebSession $session
+Write-Host "Invoke VariableGet API Request for VariableID:$VariableID and VariableName:$VariableName Completed"
+return $Response
+}
+
+
+function PrepareVariableExcel($VariableName,$VariableID,$defnitiontag){
+Write-Host "Started Appending row in RunGet Extract for the VariableID:$VariableID and VariableName:$VariableName"
+$id=$defnitiontag.GetElementsByTagName("tes:id").InnerXml
+$calc=$defnitiontag.GetElementsByTagName("tes:calc").InnerXml
+$varmstvalue=$defnitiontag.GetElementsByTagName("tes:varmstvalue").InnerXml
+$innervalue=$defnitiontag.GetElementsByTagName("tes:innervalue").InnerXml
+$lastchangetime=$defnitiontag.GetElementsByTagName("tes:lastchangetime").InnerXml
+$lastchangetimeasstring=$defnitiontag.GetElementsByTagName("tes:lastchangetimeasstring").InnerXml
+$lastusermodifiedtime=$defnitiontag.GetElementsByTagName("tes:lastusermodifiedtime").InnerXml
+$lastvalue=$defnitiontag.GetElementsByTagName("tes:lastvalue").InnerXml
+$name=$defnitiontag.GetElementsByTagName("tes:name").InnerXml
+$ownerid=$defnitiontag.GetElementsByTagName("tes:ownerid").InnerXml
+$ownername=$defnitiontag.GetElementsByTagName("tes:ownername").InnerXml
+$productiondate=$defnitiontag.GetElementsByTagName("tes:productiondate").InnerXml
+$pub=$defnitiontag.GetElementsByTagName("tes:pub").InnerXml
+$publish=$defnitiontag.GetElementsByTagName("tes:publish").InnerXml
+$readonly=$defnitiontag.GetElementsByTagName("tes:readonly").InnerXml
+$type=$defnitiontag.GetElementsByTagName("tes:type").InnerXml
+$arrayitem=[PSCustomObject]@{
+id	                    =$id
+calc	                =$calc
+varmstvalue	            =$varmstvalue
+innervalue	            =$innervalue
+lastchangetime	        =$lastchangetime
+lastchangetimeasstring	=$lastchangetimeasstring
+lastusermodifiedtime	=$lastusermodifiedtime
+lastvalue	            =$lastvalue
+name	                =$name
+ownerid              	=$ownerid
+ownername	            =$ownername
+productiondate	        =$productiondate
+pub	                    =$pub
+publish	                =$publish
+readonly	            =$readonly
+type	                =$type
+}
+Write-Host "Completed Appending row in RunGet Extract for the VariableID:$VariableID and VariableName:$VariableName"
+return $arrayitem
+}
+
+try
+{
+$FolderLevel=$GFolderLevel
+$APMNUMBER=$GAPMNUMBER
+$pattern=$Gpattern
+$Environment=$GEnvironment
+$ExtractFilename=$APMNUMBER+"_"+$Environment+"_"+$FolderLevel
+$outputarray= @()
+$ExcelData=Import-Excel -Path  "C:\Users\AL91261\TidalAutomation\MappingExcel\$ExtractFilename.xlsx" -WorksheetName "Unique_Variables" 
+foreach($item in $ExcelData)
+{
+$VariableName=$item."VariableName"
+$VariableID=$item."VariableID"
+$outputarray += VariableDefinition $VariableName $VariableID
+}
+$outputarray|Select-Object id,name,calc,innervalue,type,lastchangetime,lastusermodifiedtime | Where-Object { $_.id -gt "0"} |Export-Excel -Path  "C:\Users\AL91261\TidalAutomation\MappingExcel\$ExtractFilename.xlsx" -WorksheetName "VariableExtract" -AutoSize -TableStyle Medium2 -Numberformat "@"
+$session = $null
+}
+CATCH
+{   
+$ErrorMessage = $_.Exception.Message
+Write-Host $ErrorMessage
+$session = $null
+}
