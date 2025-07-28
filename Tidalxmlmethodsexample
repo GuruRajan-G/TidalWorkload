@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobDependency.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id></id>
+		<selectColumns></selectColumns>
+		<queryCondition>jobid=18266</queryCondition>
+	</tes:JobDependency.get>
+</entry>
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:Job.insertBatch xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<ids><id>18266</id></ids>
+		<startdate>20250123</startdate>
+	</tes:Job.insertBatch>
+</entry>
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobRun.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<queryCondition>Job.name='CPC0007_0020_WF_CDISB_AUDT_BATCH_INSERT'</queryCondition>
+		<orderBy>id DESC</orderBy>
+	</tes:JobRun.getIds>
+</entry>
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobRun.override xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>146940</id>
+	</tes:JobRun.override>
+</entry>
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobRun.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>146940</id>
+                <selectColumns>statusname,actualstarttime,lastchangetime,duration</selectColumns>
+	</tes:JobRun.get>
+</entry>
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobOutput.getJobOutputRaw xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>145306</id>
+	</tes:JobOutput.getJobOutputRaw>
+</entry>
