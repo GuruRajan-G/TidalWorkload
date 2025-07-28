@@ -1,0 +1,188 @@
+CLS
+# Step 1: Encode credentials
+$username = "xxx"
+$password = "xxx"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"
+    
+}
+$array= @()
+
+$body=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+    <tes:Job.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+        <queryCondition>parentid=36962</queryCondition>
+    </tes:Job.getIds>
+</entry>
+"@
+
+
+# Step 2: Make the REST API request
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$parentresponse = Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $body
+
+#Loop through each item in the response
+foreach($item in $parentresponse)
+{
+$Parentid=$item.id
+$ParentTitle=$item.title
+Write-Output "Processing Group Parent ID: $Parentid and Title:$ParentTitle"
+$body2=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+    <tes:Job.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+        <queryCondition>parentid=$Parentid</queryCondition>
+    </tes:Job.getIds>
+</entry>
+"@
+
+# Step 2: Make the REST API request
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$parent2response = Invoke-RestMethod -Uri $url -Method POST -Headers $headers -Body $body2
+#Loop through each item in the response
+if($parent2response.id)
+{ 
+foreach($item in $parent2response)
+{
+$Parent2id=$item.id
+$Parent2title=$item.title
+Write-Output "Processing Group Parent2 ID: $Parent2id and Title:$Parent2title"
+$body3=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+    <tes:Job.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+        <id>$Parent2id</id>
+    </tes:Job.get>
+</entry>
+"@
+
+$Jobdependencybody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobDependency.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<queryCondition>jobid=$Parent2id</queryCondition>
+	</tes:JobDependency.get>
+</entry>
+"@
+
+
+# Step 2: Make the REST API request
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+Write-Output "Processing Job Defintion Fetch Request for ID: $Parent2id and Title:$Parent2title"
+$JobDefinitionresponse = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -Body $body3
+$JobDefinitionresponse.Content | Out-File -FilePath .\TidalAutomation\JobDefinitionSource\$Parent2title.xml  -Encoding utf8
+Write-Output "Fetch Request for ID: $Parent2id and Title:$Parent2title Completed and response available in JobDefinitionSource Folder"
+
+Write-Output "Processing Job Dependency Fetch Request for ID: $Parent2id and Title:$Parent2title"
+$JobDependencyresponse = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -Body $Jobdependencybody
+$JobDependencyresponse.Content | Out-File -FilePath .\TidalAutomation\JobDependencySource\$Parent2title.xml  -Encoding utf8
+Write-Output "Fetch Job Dependency for ID: $Parent2id and Title:$Parent2title Completed and response available in JobDependencySource Folder"
+
+
+Write-Output "Update Tag Manipulation Started for Job Definition $Parent2title"
+[xml]$xml=Get-Content -Path .\TidalAutomation\JobDefinitionSource\$Parent2title.xml -Raw
+[xml]$final =$xml.GetElementsByTagName("entry")[0].OuterXml 
+$output=$final.GetElementsByTagName("tes:job")[0].OuterXml 
+$XMLheaders=Get-Content -Path "C:\Users\AL91261\Headerfooter\Header.txt"
+$XMLfooters=Get-Content -Path "C:\Users\AL91261\Headerfooter\Footer.txt"
+$UpdateXML=$XMLheaders+$output+$XMLfooters
+$UpdateXML | Out-File .\TidalAutomation\UpdateJobDefinition\$Parent2title.xml
+Write-Output "Update Tag Manipulation Completed for Job Definition $Parent2title and available in UpdateJobDefinition Folder"
+
+
+Write-Output "Update Tag Manipulation Started for Job Dependency $Parent2title"
+[xml]$JobDependencyxml=Get-Content -Path .\TidalAutomation\JobDependencySource\$Parent2title.xml -Raw
+[xml]$JobDependencyentry =$xml.GetElementsByTagName("entry")[0].OuterXml 
+$JobDependencyContent=$JobDependencyentry.GetElementsByTagName("tes:jobdependency")[0].OuterXml 
+$JobDependencyheaders=Get-Content -Path "C:\Users\AL91261\Headerfooter\DependencyHeader.txt"
+$JobDependencyfooters=Get-Content -Path "C:\Users\AL91261\Headerfooter\DependencyFooter.txt"
+$UpdateXML=$JobDependencyheaders+$JobDependencyContent+$JobDependencyfooters
+$UpdateXML | Out-File .\TidalAutomation\UpdateJobDefinition\$Parent2title.xml
+Write-Output "Update Tag Manipulation Completed for Job Definition $Parent2title and available in UpdateJobDefinition Folder"
+
+
+[xml]$defnitiontag=Get-Content -Path .\TidalAutomation\UpdateJobDefinition\$Parent2title.xml -Raw
+[xml]$dependencytag=Get-Content -Path .\TidalAutomation\UpdateJobDependency\$Parent2title.xml -Raw
+$excelJobNameColumn=$defnitiontag.GetElementsByTagName("tes:name").InnerText 
+$excelCmdColumn=$defnitiontag.GetElementsByTagName("tes:command").InnerText
+$excelparamsColumn=$defnitiontag.GetElementsByTagName("tes:parameters").InnerText
+$excelfullpathColumn=$defnitiontag.GetElementsByTagName("tes:fullpath").InnerText
+$excelinheritagentColumn=$defnitiontag.GetElementsByTagName("tes:inheritagent").InnerText
+$excelparentidcolumn=$defnitiontag.GetElementsByTagName("tes:parentid").InnerText
+$excelparentnamecolumn=$defnitiontag.GetElementsByTagName("tes:parentname").InnerText
+$exceldependencyname=$dependencytag.GetElementsByTagName("tes:depjobname").InnerText
+$exceldependencyparent=$dependencytag.GetElementsByTagName("tes:depjobparent").InnerText
+$arrayitem=[PSCustomObject]@{
+ParentID=$excelparentidcolumn
+ParentName=$excelparentnamecolumn
+JobName=$excelJobNameColumn
+Cmd=$excelCmdColumn
+CMDParams=$excelparamsColumn
+Dependency=$exceldependencyname
+Dependencyparent=$exceldependencyparent
+InheritAgent=$excelinheritagentColumn
+FullPath=$excelfullpathColumn
+}
+$array +=$arrayitem
+}
+}
+else
+{
+foreach($item in $parent2response.entry)
+{
+$Parent2id=$item.id
+$Parent2title=$item.title
+Write-Output "Processing Group Parent2 ID: $Parent2id and Title:$Parent2title"
+$body3=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+    <tes:Job.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+        <id>$Parent2id</id>
+    </tes:Job.get>
+</entry>
+"@
+
+# Step 2: Make the REST API request
+Write-Output "Processing Job Defintion Fetch Request for ID: $Parent2id and Title:$Parent2title"
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$JobDefinitionresponse = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -Body $body3
+$JobDefinitionresponse.Content | Out-File -FilePath .\TidalAutomation\JobDefinitionSource\$Parent2title.xml -Encoding utf8
+Write-Output "Fetch Request for ID: $Parent2id and Title:$Parent2title Completed and response available in JobDefinitionSource Folder"
+Write-Output "Update Tag Manipulation Started for $Parent2title"
+[xml]$xml=Get-Content -Path .\TidalAutomation\JobDefinitionSource\$Parent2title.xml -Raw
+[xml]$final =$xml.GetElementsByTagName("entry")[0].OuterXml 
+$output=$final.GetElementsByTagName("tes:job")[0].OuterXml 
+$XMLheaders=Get-Content -Path "C:\Users\AL91261\Headerfooter\Header.txt"
+$XMLfooters=Get-Content -Path "C:\Users\AL91261\Headerfooter\Footer.txt"
+$UpdateXML=$XMLheaders+$output+$XMLfooters
+$UpdateXML | Out-File .\TidalAutomation\UpdateJobDefinition\$Parent2title.xml
+Write-Output "Update Tag Manipulation Completed for $Parent2title and available in UpdateJobDefinition Folder"
+[xml]$excel=Get-Content -Path .\TidalAutomation\UpdateJobDefinition\$Parent2title.xml -Raw
+$excelJobNameColumn=$excel.GetElementsByTagName("tes:name").InnerText 
+$excelCmdColumn=$excel.GetElementsByTagName("tes:command").InnerText
+$excelparamsColumn=$excel.GetElementsByTagName("tes:parameters").InnerText
+$excelfullpathColumn=$excel.GetElementsByTagName("tes:fullpath").InnerText
+$excelinheritagentColumn=$excel.GetElementsByTagName("tes:inheritagent").InnerText
+$excelparentidcolumn=$excel.GetElementsByTagName("tes:parentid").InnerText
+$excelparentnamecolumn=$excel.GetElementsByTagName("tes:parentname").InnerText
+$arrayitem=[PSCustomObject]@{
+ParentID=$excelparentidcolumn
+ParentName=$excelparentnamecolumn
+JobName=$excelJobNameColumn
+Cmd=$excelCmdColumn
+CMDParams=$excelparamsColumn
+InheritAgent=$excelinheritagentColumn
+FullPath=$excelfullpathColumn
+}
+$array +=$arrayitem
+}
+
+}
+}
+Write-Output "Export_excel Started"
+$array | Export-Excel -Path "C:\Users\AL91261\TidalAutomation\MappingExcel\TidalMapping.xlsx" -AutoSize
+Write-Output "Export_excel Completed"
