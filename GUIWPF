@@ -1,0 +1,67 @@
+CLS
+Add-Type -AssemblyName PresentationFramework
+Add-Type -TypeDefinition @"
+using System;
+using System.Collections.ObjectModel;
+
+public class LogEntry
+{
+public string Message {get;set;}
+}
+"@ -Language CSharp
+
+$LogCollection =[System.Collections.ObjectModel.ObservableCollection[LogEntry]]::new()
+function Write-Log{
+param([string] $message)
+$LogCollection.Add([LogEntry]@{Message=$message})
+}
+
+$form= New-Object System.Windows.Window
+$form.Title="Tidal Extractor"
+$form.Height=900
+$form.Width=900
+$stack= New-Object System.Windows.Controls.StackPanel
+
+$label= New-Object System.Windows.Controls.Label
+$label.HorizontalAlignment="Left"
+$label.Content="Enter username"
+$stack.AddChild($label)
+
+$textbox= New-Object System.Windows.Controls.TextBox
+$textbox.Width=110
+$textbox.HorizontalAlignment="Left"
+$textbox.Text="ENTER USERNAME"
+$stack.AddChild($textbox)
+
+$datagrid = New-Object System.Windows.Controls.DataGrid
+$datagrid.HorizontalAlignment="Center"
+$datagrid.VerticalAlignment="Bottom"
+$datagrid.Height=500
+$datagrid.Width=500
+#$datagrid.CanUserResizeColumns="True"
+$stack.AddChild($datagrid)
+
+$button=New-Object System.Windows.Controls.Button
+$button.Content= "_OK"
+$button.Width=75
+$button.HorizontalAlignment="Center"
+
+$ok={
+Write-Log "Getting Service from $($textbox.Text)" -ForegroundColor Green
+#$data= Get-Service -ComputerName $textbox.Text| Select-Object -Property Name,Status,DisplayName
+$datagrid.ItemsSource=$LogCollection
+}
+$button.Add_Click($ok)
+$stack.AddChild($button)
+$form.AddChild($stack)
+#$form.Add_Loaded($ok)
+
+$quit = New-Object System.Windows.Controls.Button
+$quit.Content= "quit"
+$quit.Width=75
+$quit.HorizontalAlignment="Center"
+
+$stack.AddChild($quit)
+$quit.add_click({$form.Close()})
+
+[void]($form.ShowDialog())
