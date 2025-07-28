@@ -1,0 +1,326 @@
+cls
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+function Get-Headers{
+$username = "xxx"
+$password = "xxx"
+$encodedCredentials = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("$($username):$($password)"))
+$headers = @{
+    Authorization = "Basic $encodedCredentials"
+    "Content-Type" = "application/xml"
+    "User-Agent"="PostmanRuntime/7.29.4"}
+return $headers
+}
+function OutputDefinition($JobName){
+$runidarray=@()
+Write-Host "Started Extraction of RunOutputDefinition for JobName: $JobName"
+$runids=Invoke-JobRunGetIDS $JobName
+if($runids.id)
+{
+foreach($runid in $runids.id)
+{
+#write-host $runid
+$Rungetoutput=Invoke-JobRunGet $runid  $JobName
+$runidarray += PreparerunidExcel $runid $Rungetoutput $JobName
+#break
+}
+}
+elseif($runids.entry -ne $null){
+foreach($runid in $runids)
+{
+write-host $runid.entry.id  
+$Rungetoutput=Invoke-JobRunGet $runid.entry.id  $JobName
+$runidarray += PreparerunidExcel $runid.entry.id $Rungetoutput $JobName
+break
+}
+}
+else
+{
+Write-Host "No Execution Happend for JobName: $JobName"
+}
+Write-Host "Completed Extraction of RunOutputDefinition for JobName: $JobName"
+return $runidarray
+}
+
+function Invoke-JobRunGetIDS($JobName)
+{
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobRun.getIds xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<queryCondition>Job.name like '$JobName*'</queryCondition>
+		<orderBy>id DESC</orderBy>
+	</tes:JobRun.getIds>
+</entry>
+"@
+#and BETWEEN( rundate, '20250110', '20250404') 
+Write-Host "Invoke JobRunGetIDS API Request for JobName: $JobName Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody -WebSession $session
+Write-Host "Invoke JobRunGetIDS API Request for JobName: $JobName Completed"
+return $Response
+}
+function Invoke-JobRunGet($id,$JobName)
+{
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobRun.get xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>$id</id>
+	</tes:JobRun.get>
+</entry>
+"@
+Write-Host "Invoke JobRunGet API Request for ID:$id and JobName:$Jobname Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody -WebSession $session
+Write-Host "Invoke JobRunGet API Request for ID:$id and JobName:$Jobname Completed"
+return $Response
+}
+function Invoke-JobOutput($id,$Jobname){
+$url = "https://tidalglddeva.internal.das/api/tes-6.5/postbody"
+$Requestheaders= Get-Headers
+$Requestbody=@"
+<?xml version="1.0" encoding="UTF-8" ?>
+<entry xmlns="http://purl.org/atom/ns#">
+	<tes:JobOutput.getJobOutputRaw xmlns:tes="http://www.tidalsoftware.com/client/tesservlet">
+		<id>$id</id>
+	</tes:JobOutput.getJobOutputRaw>
+</entry>
+"@
+Write-Host "Invoke JobOutput API Request for ID:$id and JobName:$Jobname Started"
+$Response = Invoke-RestMethod -Uri $url -Method POST -Headers $Requestheaders -Body $Requestbody -WebSession $session
+Write-Host "Invoke JobOutput API Request for ID:$id and JobName:$Jobname Completed"
+return $Response
+}
+
+function PreparerunidExcel($runid,$defnitiontag,$JobName){
+Write-Host "Started Appending row in RunGet Extract for the runid:$runid and JobName:$JobName"
+$id=$defnitiontag.GetElementsByTagName("tes:id").InnerXml
+$parentid=$defnitiontag.GetElementsByTagName("tes:parentid").InnerXml
+$parentname=$defnitiontag.GetElementsByTagName("tes:parentname").InnerXml
+$name=$defnitiontag.GetElementsByTagName("tes:name").InnerXml
+<#
+$active=$defnitiontag.GetElementsByTagName("tes:active").InnerXml
+$productiondate=$defnitiontag.GetElementsByTagName("tes:productiondate").InnerXml
+$productiondateasstring=$defnitiontag.GetElementsByTagName("tes:productiondateasstring").InnerXml
+$rundate=$defnitiontag.GetElementsByTagName("tes:rundate").InnerXml
+$rundateasstring=$defnitiontag.GetElementsByTagName("tes:rundateasstring").InnerXml
+$owner=$defnitiontag.GetElementsByTagName("tes:owner").InnerXml
+$ownername=$defnitiontag.GetElementsByTagName("tes:ownername").InnerXml
+$jobname=$defnitiontag.GetElementsByTagName("tes:jobname").InnerXml
+$jobid=$defnitiontag.GetElementsByTagName("tes:jobid").InnerXml
+$nodeid=$defnitiontag.GetElementsByTagName("tes:nodeid").InnerXml
+$childrencount=$defnitiontag.GetElementsByTagName("tes:childrencount").InnerXml
+$instance=$defnitiontag.GetElementsByTagName("tes:instance").InnerXml
+$allowrerun=$defnitiontag.GetElementsByTagName("tes:allowrerun").InnerXml
+$allowadhoc=$defnitiontag.GetElementsByTagName("tes:allowadhoc").InnerXml
+$adhoc=$defnitiontag.GetElementsByTagName("tes:adhoc").InnerXml
+$fullpath=$defnitiontag.GetElementsByTagName("tes:fullpath").InnerXml
+$fullpathname=$defnitiontag.GetElementsByTagName("tes:fullpathname").InnerXml
+#>
+$status=$defnitiontag.GetElementsByTagName("tes:status").InnerXml
+$type=$defnitiontag.GetElementsByTagName("tes:type").InnerXml
+$statusname=$defnitiontag.GetElementsByTagName("tes:statusname").InnerXml
+<#
+$waitop=$defnitiontag.GetElementsByTagName("tes:waitop").InnerXml
+$params=$defnitiontag.GetElementsByTagName("tes:params").InnerXml
+$currenteststarttime=$defnitiontag.GetElementsByTagName("tes:currenteststarttime").InnerXml
+$currenteststarttimeasstring=$defnitiontag.GetElementsByTagName("tes:currenteststarttimeasstring").InnerXml
+$estimatedduration=$defnitiontag.GetElementsByTagName("tes:estimatedduration").InnerXml
+$reruns=$defnitiontag.GetElementsByTagName("tes:reruns").InnerXml
+$estimatedstarttime=$defnitiontag.GetElementsByTagName("tes:estimatedstarttime").InnerXml
+$estimatedstarttimeasstring=$defnitiontag.GetElementsByTagName("tes:estimatedstarttimeasstring").InnerXml
+$lastchangetime=$defnitiontag.GetElementsByTagName("tes:lastchangetime").InnerXml
+$lastchangetimeasstring=$defnitiontag.GetElementsByTagName("tes:lastchangetimeasstring").InnerXml
+#>
+$duration=$defnitiontag.GetElementsByTagName("tes:duration").InnerXml
+$statuschangetime=$defnitiontag.GetElementsByTagName("tes:statuschangetime").InnerXml
+<#
+$agentname=$defnitiontag.GetElementsByTagName("tes:agentname").InnerXml
+$agenttimediff=$defnitiontag.GetElementsByTagName("tes:agenttimediff").InnerXml
+$timezone=$defnitiontag.GetElementsByTagName("tes:timezone").InnerXml
+$timezonealias=$defnitiontag.GetElementsByTagName("tes:timezonealias").InnerXml
+$priority=$defnitiontag.GetElementsByTagName("tes:priority").InnerXml
+$jobparentid=$defnitiontag.GetElementsByTagName("tes:jobparentid").InnerXml
+$command=$defnitiontag.GetElementsByTagName("tes:command").InnerXml
+$exitcode=$defnitiontag.GetElementsByTagName("tes:exitcode").InnerXml
+$alias=$defnitiontag.GetElementsByTagName("tes:alias").InnerXml
+$successorsvalue=$defnitiontag.GetElementsByTagName("tes:successorsvalue").InnerXml
+$successorlist=$defnitiontag.GetElementsByTagName("tes:successorlist").InnerXml
+$predecessorsvalue=$defnitiontag.GetElementsByTagName("tes:predecessorsvalue").InnerXml
+$groupinstance=$defnitiontag.GetElementsByTagName("tes:groupinstance").InnerXml
+$calendarid=$defnitiontag.GetElementsByTagName("tes:calendarid").InnerXml
+$calendarname=$defnitiontag.GetElementsByTagName("tes:calendarname").InnerXml
+$carryover=$defnitiontag.GetElementsByTagName("tes:carryover").InnerXml
+$concur=$defnitiontag.GetElementsByTagName("tes:concur").InnerXml
+$dependecylogic=$defnitiontag.GetElementsByTagName("tes:dependecylogic").InnerXml
+$dependencies=$defnitiontag.GetElementsByTagName("tes:dependencies").InnerXml
+$dependencyrerun=$defnitiontag.GetElementsByTagName("tes:dependencyrerun").InnerXml
+$deptextlength=$defnitiontag.GetElementsByTagName("tes:deptextlength").InnerXml
+$estmethod=$defnitiontag.GetElementsByTagName("tes:estmethod").InnerXml
+$expire=$defnitiontag.GetElementsByTagName("tes:expire").InnerXml
+$expireasstring=$defnitiontag.GetElementsByTagName("tes:expireasstring").InnerXml
+$maxruntime=$defnitiontag.GetElementsByTagName("tes:maxruntime").InnerXml
+$metflag=$defnitiontag.GetElementsByTagName("tes:metflag").InnerXml
+$minruntime=$defnitiontag.GetElementsByTagName("tes:minruntime").InnerXml
+$nearoutage=$defnitiontag.GetElementsByTagName("tes:nearoutage").InnerXml
+$normalexit=$defnitiontag.GetElementsByTagName("tes:normalexit").InnerXml
+$normalop=$defnitiontag.GetElementsByTagName("tes:normalop").InnerXml
+$normalrange=$defnitiontag.GetElementsByTagName("tes:normalrange").InnerXml
+$proxy2=$defnitiontag.GetElementsByTagName("tes:proxy2").InnerXml
+$rootid=$defnitiontag.GetElementsByTagName("tes:rootid").InnerXml
+$saveoutput=$defnitiontag.GetElementsByTagName("tes:saveoutput").InnerXml
+$statusorder=$defnitiontag.GetElementsByTagName("tes:statusorder").InnerXml
+$trackcommand=$defnitiontag.GetElementsByTagName("tes:trackcommand").InnerXml
+$trackmethod=$defnitiontag.GetElementsByTagName("tes:trackmethod").InnerXml
+$abnormalingroup=$defnitiontag.GetElementsByTagName("tes:abnormalingroup").InnerXml
+$lastprocessedstatus=$defnitiontag.GetElementsByTagName("tes:lastprocessedstatus").InnerXml
+$notes=$defnitiontag.GetElementsByTagName("tes:notes").InnerXml
+$jobpriority=$defnitiontag.GetElementsByTagName("tes:jobpriority").InnerXml
+$isnotes=$defnitiontag.GetElementsByTagName("tes:isnotes").InnerXml
+$isrunbook=$defnitiontag.GetElementsByTagName("tes:isrunbook").InnerXml
+$tags=$defnitiontag.GetElementsByTagName("tes:tags").InnerXml
+$filtertags=$defnitiontag.GetElementsByTagName("tes:filtertags").InnerXml
+$businessactivitytags=$defnitiontag.GetElementsByTagName("tes:businessactivitytags").InnerXml
+$sharedownerids=$defnitiontag.GetElementsByTagName("tes:sharedownerids").InnerXml
+$sharedowners=$defnitiontag.GetElementsByTagName("tes:sharedowners").InnerXml
+$lastrun=$defnitiontag.GetElementsByTagName("tes:lastrun").InnerXml
+$timebatch=$defnitiontag.GetElementsByTagName("tes:timebatch").InnerXml
+#>
+$Runoutputraw=Invoke-JobOutput $runid $JobName
+$outputstring = PreparerunOutputxcel $runid $Runoutputraw $JobName
+<#$arrayitem=[PSCustomObject]@{
+id=$id
+parentid=$parentid
+parentname=$parentname
+name=$name
+active=$active
+productiondate=$productiondate
+productiondateasstring=$productiondateasstring
+rundate=$rundate
+rundateasstring=$rundateasstring
+owner=$owner
+ownername=$ownername
+jobname=$jobname
+jobid=$jobid
+nodeid=$nodeid
+childrencount=$childrencount
+instance=$instance
+allowrerun=$allowrerun
+allowadhoc=$allowadhoc
+adhoc=$adhoc
+fullpath=$fullpath
+fullpathname=$fullpathname
+status=$status
+type=$type
+statusname=$statusname
+waitop=$waitop
+params=$params
+currenteststarttime=$currenteststarttime
+currenteststarttimeasstring=$currenteststarttimeasstring
+estimatedduration=$estimatedduration
+reruns=$reruns
+estimatedstarttime=$estimatedstarttime
+estimatedstarttimeasstring=$estimatedstarttimeasstring
+lastchangetime=$lastchangetime
+lastchangetimeasstring=$lastchangetimeasstring
+duration=$duration
+statuschangetime=$statuschangetime
+agentname=$agentname
+agenttimediff=$agenttimediff
+timezone=$timezone
+timezonealias=$timezonealias
+priority=$priority
+jobparentid=$jobparentid
+command=$command
+exitcode=$exitcode
+alias=$alias
+successorsvalue=$successorsvalue
+successorlist=$successorlist
+predecessorsvalue=$predecessorsvalue
+groupinstance=$groupinstance
+calendarid=$calendarid
+calendarname=$calendarname
+carryover=$carryover
+concur=$concur
+dependecylogic=$dependecylogic
+dependencies=$dependencies
+dependencyrerun=$dependencyrerun
+deptextlength=$deptextlength
+estmethod=$estmethod
+expire=$expire
+expireasstring=$expireasstring
+maxruntime=$maxruntime
+metflag=$metflag
+minruntime=$minruntime
+nearoutage=$nearoutage
+normalexit=$normalexit
+normalop=$normalop
+normalrange=$normalrange
+proxy2=$proxy2
+rootid=$rootid
+saveoutput=$saveoutput
+statusorder=$statusorder
+trackcommand=$trackcommand
+trackmethod=$trackmethod
+abnormalingroup=$abnormalingroup
+lastprocessedstatus=$lastprocessedstatus
+notes=$notes
+jobpriority=$jobpriority
+isnotes=$isnotes
+isrunbook=$isrunbook
+tags=$tags
+filtertags=$filtertags
+businessactivitytags=$businessactivitytags
+sharedownerids=$sharedownerids
+sharedowners=$sharedowners
+lastrun=$lastrun
+timebatch=$timebatch
+outputstring=$outputstring
+}#>
+$arrayitem=[PSCustomObject]@{
+id=$id
+parentid=$parentidparentname
+name=$name
+jobname=$jobname
+status=$status
+statusname=$statusname
+statuschangetime=$statuschangetime
+duration=$duration
+outputstring=$outputstring
+}
+Write-Host "Completed Appending row in RunGet Extract for the runid:$runid and JobName:$JobName"
+return $arrayitem
+}
+
+function PreparerunOutputxcel($runid,$Runoutputraw,$JobName){
+Write-Host "Started Appending row in JobOutputExtract for runid:$runid and Jobname:$JobName"
+$output=$Runoutputraw.GetElementsByTagName("xs:string").InnerText
+
+if($output -like "Microsoft (R) SQL Server Execute Package Utility*")
+{
+$output="Please refer the execution output in tidal since SSIS output is huge will not able to capture in excel"
+}
+Write-Host "Completed Appending row in JobOutputExtract for runid:$runid and Jobname:$JobName"
+return $output
+}
+
+try
+{
+$outputarray= @()
+$ExcelData=Import-Excel -Path "C:\Users\AL91261\TidalAutomation\testing.xlsx"
+foreach($item in $ExcelData)
+{
+$Jobname=$item."Job Name"
+$outputarray += OutputDefinition $Jobname
+}
+$outputarray |Select-Object id,parentid,parentname,name,jobname,status,statusname,statuschangetime,duration,outputstring |Export-Excel -Path "C:\Users\AL91261\TidalAutomation\TidalExecution\OutputExtract_APM1000909.xlsx" -AutoSize -TableStyle Medium2 -Numberformat "@"
+
+}
+
+CATCH
+{   
+$ErrorMessage = $_.Exception.Message
+Write-Host $ErrorMessage
+}
