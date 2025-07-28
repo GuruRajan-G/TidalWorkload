@@ -1,0 +1,29 @@
+cls
+$UpdateExcelFilePath="C:\Users\AL91261\TidalAutomation\MappingExcel\Filedepreplace.xlsx"
+$FindReplaceExcelFilePath="C:\Users\AL91261\TidalAutomation\MappingExcel\Variable_Mapping.xlsx"
+$UpdateExcelData= Import-Excel -Path $UpdateExcelFilePath
+$FindReplaceExcelData= Import-Excel -Path $FindReplaceExcelFilePath
+foreach($item in $FindReplaceExcelData)
+{
+$find= $item.Old_value
+$replace= $item.New_Value
+foreach($Row in $UpdateExcelData)
+{
+foreach ($Column in $Row.PSObject.Properties)
+{
+#Write-Host $Column
+$cellvalue =$Column.Value.ToString()
+if($cellvalue -like "*$find*")
+{
+
+$row.$($Column.Name) = $cellvalue -replace [regex]::Escape($find),$replace
+Write-host "Found $find and Replaced with $replace"
+
+}
+}
+
+
+}}
+
+$UpdateExcelData | Export-Excel -Path  $UpdateExcelFilePath
+Write-Host "Find and replace operation Completed"
